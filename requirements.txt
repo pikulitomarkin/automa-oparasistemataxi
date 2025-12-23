@@ -1,0 +1,38 @@
+# Core Dependencies
+python-dotenv>=1.0.0
+requests>=2.31.0
+pandas>=2.2.0
+
+# Email Processing
+imap-tools>=1.6.0
+
+# LLM / AI
+openai>=1.6.1
+
+# Geocoding & Maps
+geopy>=2.4.1
+
+# Database
+sqlalchemy>=2.0.23
+
+# Dashboard
+streamlit>=1.29.0
+plotly>=5.18.0
+folium>=0.15.0
+streamlit-folium>=0.15.0
+
+# Production
+gunicorn>=21.2.0
+folium>=0.15.1
+streamlit-folium>=0.15.1
+
+# Utils
+retry>=0.9.2
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Development & Testing
+pytest>=7.4.3
+pytest-cov>=4.1.0
+black>=23.12.1
+flake8>=7.0.0
