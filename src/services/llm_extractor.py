@@ -26,13 +26,13 @@ class LLMExtractor:
 
 Sua tarefa é analisar o corpo do e-mail e extrair APENAS os seguintes campos em formato JSON:
 
-{
+{{
   "passenger_name": "Nome completo do passageiro",
   "phone": "Telefone com DDD (formato: XX XXXXX-XXXX ou similar)",
   "pickup_address": "Endereço completo de coleta (rua, número, bairro, cidade)",
   "dropoff_address": "Endereço completo de destino (ou null se não mencionado)",
   "pickup_time": "Data e hora de coleta no formato ISO 8601 (YYYY-MM-DDTHH:MM:SS)"
-}
+}}
 
 REGRAS IMPORTANTES:
 1. Para horários relativos ("amanhã às 14h", "hoje às 15h30", "dia 25 às 10h"), converta para formato ISO 8601 absoluto.
@@ -77,22 +77,38 @@ Data/hora de referência para conversões: {reference_datetime}"""
             )
             
             # Chama a API OpenAI
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"E-mail do pedido:\n\n{email_body}"}
-                ],
-                temperature=0.1,  # Baixa temperatura para mais consistência
-                max_tokens=500
-            )
+            logger.info(f"Calling OpenAI API with model {self.model}...")
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"E-mail do pedido:\n\n{email_body}"}
+                    ],
+                    temperature=0.1,  # Baixa temperatura para mais consistência
+                    max_tokens=500
+                )
+            except Exception as api_error:
+                logger.error(f"OpenAI API call failed: {api_error}")
+                raise
             
             # Extrai o conteúdo da resposta
             content = response.choices[0].message.content.strip()
+            logger.info(f"LLM raw response: {content[:200]}...")  # Log da resposta
             
-            # Remove possíveis markdown code blocks
+            # Remove possíveis markdown code blocks e outros caracteres
             content = re.sub(r'^```json\s*', '', content)
+            content = re.sub(r'^```\s*', '', content)
             content = re.sub(r'\s*```$', '', content)
+            content = content.strip()
+            
+            # Tenta encontrar JSON válido na resposta
+            # Remove possíveis textos antes/depois do JSON
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                content = json_match.group(0)
+            
+            logger.info(f"JSON after cleanup: {content[:200]}...")  # Log após limpeza
             
             # Parse JSON
             data = json.loads(content)
@@ -111,10 +127,12 @@ Data/hora de referência para conversões: {reference_datetime}"""
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON from LLM response: {e}")
-            logger.debug(f"LLM response was: {content}")
+            logger.error(f"LLM response was: {content[:500]}")  # Mostra primeiros 500 chars
             return None
         except Exception as e:
             logger.error(f"Error in LLM extraction: {e}")
+            if 'content' in locals():
+                logger.error(f"LLM response was: {content[:500]}")
             return None
     
     def _validate_extracted_data(self, data: Dict) -> bool:
