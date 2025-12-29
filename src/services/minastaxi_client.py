@@ -92,36 +92,20 @@ class MinasTaxiClient:
         Raises:
             MinasTaxiAPIError: Em caso de erro na API.
         """
-        # Monta o payload
+        # Monta o payload (formato esperado pela API Mock)
         payload = {
-            'passenger': {
-                'name': passenger_name,
-                'phone': phone
-            },
-            'pickup': {
-                'address': pickup_address,
-                'coordinates': {
-                    'latitude': pickup_lat,
-                    'longitude': pickup_lng
-                },
-                'scheduled_time': pickup_time.isoformat()
-            }
+            'passenger_name': passenger_name,
+            'passenger_phone': phone,
+            'passenger_email': kwargs.get('email', ''),
+            'pickup_address': pickup_address,
+            'pickup_latitude': pickup_lat,
+            'pickup_longitude': pickup_lng,
+            'pickup_time': pickup_time.isoformat() if hasattr(pickup_time, 'isoformat') else pickup_time,
+            'destination_address': dropoff_address or '',
+            'destination_latitude': dropoff_lat,
+            'destination_longitude': dropoff_lng,
+            'notes': kwargs.get('notes', '')
         }
-        
-        # Adiciona destino se fornecido
-        if dropoff_address:
-            payload['dropoff'] = {
-                'address': dropoff_address
-            }
-            if dropoff_lat and dropoff_lng:
-                payload['dropoff']['coordinates'] = {
-                    'latitude': dropoff_lat,
-                    'longitude': dropoff_lng
-                }
-        
-        # Adiciona campos extras se fornecidos
-        if kwargs:
-            payload['metadata'] = kwargs
         
         # Valida payload
         self._validate_payload(payload)
@@ -205,27 +189,12 @@ class MinasTaxiClient:
         Raises:
             ValueError: Se o payload for inválido.
         """
-        # Validações básicas
-        if 'passenger' not in payload:
-            raise ValueError("Missing 'passenger' in payload")
+        # Validações básicas para o formato Mock API
+        required_fields = ['passenger_name', 'passenger_phone', 'pickup_address']
         
-        if 'pickup' not in payload:
-            raise ValueError("Missing 'pickup' in payload")
-        
-        passenger = payload['passenger']
-        if not passenger.get('name') or not passenger.get('phone'):
-            raise ValueError("Passenger must have 'name' and 'phone'")
-        
-        pickup = payload['pickup']
-        if not pickup.get('address'):
-            raise ValueError("Pickup must have 'address'")
-        
-        if 'coordinates' not in pickup:
-            raise ValueError("Pickup must have 'coordinates'")
-        
-        coords = pickup['coordinates']
-        if 'latitude' not in coords or 'longitude' not in coords:
-            raise ValueError("Pickup coordinates must have 'latitude' and 'longitude'")
+        for field in required_fields:
+            if not payload.get(field):
+                raise ValueError(f"Missing required field: {field}")
     
     def get_order_status(self, order_id: str) -> Dict:
         """

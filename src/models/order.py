@@ -56,6 +56,10 @@ class Order:
     # Cluster para otimização geográfica
     cluster_id: Optional[int] = None
     
+    # Notificação WhatsApp
+    whatsapp_sent: bool = False
+    whatsapp_message_id: Optional[str] = None
+    
     def to_dict(self) -> dict:
         """Converte o pedido para dicionário."""
         return {

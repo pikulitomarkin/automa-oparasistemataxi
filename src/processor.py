@@ -11,6 +11,7 @@ from .services.email_reader import EmailReader, EmailMessage
 from .services.llm_extractor import LLMExtractor
 from .services.geocoding_service import GeocodingService
 from .services.minastaxi_client import MinasTaxiClient, MinasTaxiAPIError
+from .services.whatsapp_notifier import WhatsAppNotifier
 from .services.database import DatabaseManager
 from .models import Order, OrderStatus
 
@@ -79,6 +80,20 @@ class TaxiOrderProcessor:
             timeout=int(os.getenv('MINASTAXI_TIMEOUT', 30)),
             max_retries=int(os.getenv('MINASTAXI_RETRY_ATTEMPTS', 3))
         )
+        
+        # WhatsApp Notifier (opcional)
+        self.whatsapp_enabled = os.getenv('ENABLE_WHATSAPP_NOTIFICATIONS', 'false').lower() == 'true'
+        if self.whatsapp_enabled:
+            self.whatsapp_notifier = WhatsAppNotifier(
+                api_url=os.getenv('EVOLUTION_API_URL', ''),
+                api_key=os.getenv('EVOLUTION_API_KEY', ''),
+                instance_name=os.getenv('EVOLUTION_INSTANCE_NAME', 'taxi-bot'),
+                timeout=int(os.getenv('MINASTAXI_TIMEOUT', 30))
+            )
+            logger.info("WhatsApp notifications enabled")
+        else:
+            self.whatsapp_notifier = None
+            logger.info("WhatsApp notifications disabled")
         
         logger.info("All services initialized successfully")
     
@@ -240,11 +255,41 @@ class TaxiOrderProcessor:
                 
                 logger.info(f"Order {order.id} successfully dispatched to MinasTaxi")
                 
+                # FASE 4: Notificação WhatsApp (se habilitada)
+                if self.whatsapp_enabled and self.whatsapp_notifier and order.phone:
+                    try:
+                        whatsapp_response = self.whatsapp_notifier.send_message(
+                            name=order.passenger_name or "Cliente",
+                            phone=order.phone,
+                            destination=order.dropoff_address or order.pickup_address or "destino",
+                            status="Sucesso"
+                        )
+                        order.whatsapp_sent = True
+                        order.whatsapp_message_id = whatsapp_response.get('message_id')
+                        self.db.update_order(order)
+                        logger.info(f"WhatsApp notification sent for order {order.id}")
+                    except Exception as whatsapp_error:
+                        logger.warning(f"Failed to send WhatsApp for order {order.id}: {whatsapp_error}")
+                        # Não falha o pedido por erro no WhatsApp
+                
             except MinasTaxiAPIError as e:
                 order.status = OrderStatus.FAILED
                 order.error_message = f"MinasTaxi API error: {str(e)}"
                 self.db.update_order(order)
                 logger.error(f"Failed to dispatch order {order.id}: {e}")
+                
+                # Notifica erro via WhatsApp (se habilitado)
+                if self.whatsapp_enabled and self.whatsapp_notifier and order.phone:
+                    try:
+                        self.whatsapp_notifier.send_message(
+                            name=order.passenger_name or "Cliente",
+                            phone=order.phone,
+                            destination=order.dropoff_address or order.pickup_address or "destino",
+                            status="Erro"
+                        )
+                        logger.info(f"Error notification sent via WhatsApp for order {order.id}")
+                    except Exception as whatsapp_error:
+                        logger.warning(f"Failed to send error WhatsApp: {whatsapp_error}")
             
         except Exception as e:
             order.status = OrderStatus.FAILED

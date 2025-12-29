@@ -31,6 +31,10 @@ retry>=0.9.2
 python-dateutil>=2.8.2
 pytz>=2023.3
 
+# Mock API
+flask>=3.0.0
+openpyxl>=3.1.2
+
 # Development & Testing
 pytest>=7.4.3
 pytest-cov>=4.1.0
