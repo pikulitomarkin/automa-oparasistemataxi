@@ -1,11 +1,14 @@
 """
-MinasTaxi API Client with retry logic and error handling.
+MinasTaxi API Client - Original Software Integration
+Documentação completa em: docs/API_MINASTAXI.md
 """
 import logging
 import requests
+import uuid
 from typing import Optional, Dict
 from retry import retry
 from datetime import datetime
+from ..models.order import Order
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +20,16 @@ class MinasTaxiAPIError(Exception):
 
 class MinasTaxiClient:
     """
-    Cliente para integração com a API MinasTaxi.
-    Implementa retry logic, tratamento de erros e validação de payload.
+    Cliente para integração com a API MinasTaxi (Original Software).
+    Implementa retry logic, tratamento de erros e formato correto de payload.
     """
     
     def __init__(
         self,
         api_url: str,
-        api_key: str,
+        user_id: str,
+        password: str,
+        auth_header: str = None,
         timeout: int = 30,
         max_retries: int = 3
     ):
@@ -32,24 +37,58 @@ class MinasTaxiClient:
         Inicializa o cliente da API MinasTaxi.
         
         Args:
-            api_url: URL base da API (ex: https://api.minastaxi.com.br).
-            api_key: Chave de autenticação da API.
+            api_url: URL base da API (ex: https://vm2c.taxifone.com.br:11048).
+            user_id: ID do contrato/empresa (ex: "02572696000156").
+            password: Senha de acesso (ex: "0104").
+            auth_header: Header de autenticação completo (ex: "Basic Original.#2024").
             timeout: Timeout para requisições em segundos.
             max_retries: Número máximo de tentativas de retry.
         """
         self.api_url = api_url.rstrip('/')
-        self.api_key = api_key
+        self.user_id = user_id
+        self.password = password
         self.timeout = timeout
         self.max_retries = max_retries
         
-        # Headers padrão para todas as requisições
+        # Headers padrão (Basic Auth)
         self.headers = {
-            'Authorization': f'Bearer {api_key}',
+            'authorization': auth_header or 'Basic Original',
             'Content-Type': 'application/json',
             'User-Agent': 'TaxiAutomationSystem/1.0'
         }
         
-        logger.info(f"MinasTaxi client initialized for {api_url}")
+        logger.info(f"MinasTaxi client initialized for {api_url} (User: {user_id})")
+    
+    def _datetime_to_unix(self, dt: datetime) -> str:
+        """
+        Converte datetime para UNIX Time (segundos desde epoch).
+        
+        Args:
+            dt: Objeto datetime.
+            
+        Returns:
+            String com timestamp UNIX.
+        """
+        if isinstance(dt, str):
+            # Se já é string ISO, tenta converter para datetime
+            try:
+                dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+            except:
+                # Se falhar, assume que já é UNIX time
+                return dt
+        
+        return str(int(dt.timestamp()))
+    
+    def _generate_request_id(self) -> str:
+        """
+        Gera ID único para a requisição.
+        
+        Returns:
+            ID único no formato timestamp + UUID curto.
+        """
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        short_uuid = str(uuid.uuid4())[:8].upper()
+        return f"{timestamp}{short_uuid}"
     
     @retry(
         exceptions=requests.exceptions.RequestException,
@@ -58,63 +97,83 @@ class MinasTaxiClient:
         backoff=2,
         logger=logger
     )
-    def dispatch_order(
-        self,
-        passenger_name: str,
-        phone: str,
-        pickup_address: str,
-        pickup_lat: float,
-        pickup_lng: float,
-        pickup_time: datetime,
-        dropoff_address: Optional[str] = None,
-        dropoff_lat: Optional[float] = None,
-        dropoff_lng: Optional[float] = None,
-        **kwargs
-    ) -> Dict:
+    def dispatch_order(self, order: Order) -> Dict:
         """
-        Envia um pedido de táxi para a API MinasTaxi.
+        Envia um pedido de táxi para a API MinasTaxi usando rideCreate.
         
         Args:
-            passenger_name: Nome do passageiro.
-            phone: Telefone do passageiro.
-            pickup_address: Endereço de coleta.
-            pickup_lat: Latitude da coleta.
-            pickup_lng: Longitude da coleta.
-            pickup_time: Data/hora da coleta.
-            dropoff_address: Endereço de destino (opcional).
-            dropoff_lat: Latitude do destino (opcional).
-            dropoff_lng: Longitude do destino (opcional).
-            **kwargs: Parâmetros adicionais.
+            order: Objeto Order com todos os dados do pedido.
             
         Returns:
-            Resposta da API com dados do pedido criado.
+            Resposta da API com ride_id e status.
             
         Raises:
             MinasTaxiAPIError: Em caso de erro na API.
         """
-        # Monta o payload (formato esperado pela API Mock)
+        # Gera request_id único
+        request_id = self._generate_request_id()
+        
+        # Converte pickup_time para UNIX timestamp
+        unix_time = self._datetime_to_unix(order.pickup_time)
+        
+        # Monta payload no formato Original Software
         payload = {
-            'passenger_name': passenger_name,
-            'passenger_phone': phone,
-            'passenger_email': kwargs.get('email', ''),
-            'pickup_address': pickup_address,
-            'pickup_latitude': pickup_lat,
-            'pickup_longitude': pickup_lng,
-            'pickup_time': pickup_time.isoformat() if hasattr(pickup_time, 'isoformat') else pickup_time,
-            'destination_address': dropoff_address or '',
-            'destination_latitude': dropoff_lat,
-            'destination_longitude': dropoff_lng,
-            'notes': kwargs.get('notes', '')
+            "partner": "1",  # Fixo como "1" conforme padrão
+            "user": self.user_id,
+            "password": self.password,
+            "request_id": request_id,
+            "pickup_time": unix_time,
+            "category": "taxi",  # Pode ser parametrizado depois
+            "passengers_no": 1,
+            "suitcases_no": 0,
+            "passenger_note": order.raw_email_body or "",
+            "passenger_name": order.passenger_name,
+            "passenger_phone_number": order.phone,
+            "payment_type": "ONLINE_PAYMENT",  # Padrão
+            "users": [
+                {
+                    "id": 1,
+                    "sequence": 1,
+                    "name": order.passenger_name,
+                    "phone": order.phone,
+                    "pickup": {
+                        "address": order.pickup_address,
+                        "city": self._extract_city(order.pickup_address),
+                        "state": self._extract_state(order.pickup_address),
+                        "postal_code": "",
+                        "lat": str(order.pickup_lat),
+                        "lng": str(order.pickup_lng)
+                    }
+                }
+            ]
         }
+        
+        # Adiciona destino se fornecido
+        if order.dropoff_address and order.dropoff_lat and order.dropoff_lng:
+            payload["destinations"] = [
+                {
+                    "passengerId": 1,
+                    "sequence": 2,
+                    "location": {
+                        "address": order.dropoff_address,
+                        "city": self._extract_city(order.dropoff_address),
+                        "state": self._extract_state(order.dropoff_address),
+                        "postal_code": "",
+                        "lat": str(order.dropoff_lat),
+                        "lng": str(order.dropoff_lng)
+                    }
+                }
+            ]
         
         # Valida payload
         self._validate_payload(payload)
         
         # URL do endpoint
-        endpoint = f"{self.api_url}/dispatch"
+        endpoint = f"{self.api_url}/rideCreate"
         
         try:
-            logger.info(f"Dispatching order for {passenger_name} to MinasTaxi API")
+            logger.info(f"Dispatching order for {order.passenger_name} to MinasTaxi API")
+            logger.debug(f"Request ID: {request_id}")
             
             response = requests.post(
                 endpoint,
@@ -124,46 +183,37 @@ class MinasTaxiClient:
             )
             
             # Log da requisição
-            logger.debug(f"Request to {endpoint}: {payload}")
+            logger.debug(f"Request to {endpoint}")
             logger.debug(f"Response status: {response.status_code}")
             
-            # Trata diferentes códigos de resposta
-            if response.status_code == 201:
-                # Sucesso - pedido criado
+            # Trata resposta
+            if response.status_code == 200:
                 data = response.json()
-                order_id = data.get('order_id', 'UNKNOWN')
-                logger.info(f"Order successfully dispatched. MinasTaxi Order ID: {order_id}")
-                return data
                 
-            elif response.status_code == 200:
-                # Sucesso alternativo
-                data = response.json()
-                logger.info("Order dispatched successfully")
-                return data
-                
-            elif response.status_code == 400:
-                # Bad Request - erro no payload
-                error_msg = response.json().get('error', 'Bad request')
-                logger.error(f"Bad request to MinasTaxi API: {error_msg}")
-                raise MinasTaxiAPIError(f"Bad request: {error_msg}")
-                
-            elif response.status_code == 401:
-                # Não autorizado - problema com API key
-                logger.error("Unauthorized: Invalid API key")
-                raise MinasTaxiAPIError("Unauthorized: Invalid API key")
-                
-            elif response.status_code == 429:
-                # Rate limit excedido
-                logger.warning("Rate limit exceeded, will retry...")
-                raise requests.exceptions.RequestException("Rate limit exceeded")
-                
-            elif response.status_code >= 500:
-                # Erro no servidor - tenta retry
-                logger.warning(f"Server error ({response.status_code}), will retry...")
-                raise requests.exceptions.RequestException(f"Server error: {response.status_code}")
+                if data.get('accepted_and_looking_for_driver'):
+                    ride_id = data.get('ride_id')
+                    logger.info(f"Order dispatched successfully. Ride ID: {ride_id}")
+                    
+                    return {
+                        'success': True,
+                        'order_id': ride_id,
+                        'request_id': request_id,
+                        'status': 'dispatched',
+                        'message': 'Pedido aceito, procurando motorista',
+                        'ride_id': ride_id
+                    }
+                else:
+                    logger.error("Order was not accepted by MinasTaxi")
+                    raise MinasTaxiAPIError("Order not accepted")
+                    
+            elif response.status_code == 500:
+                # Internal error
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get('error', 'Internal server error')
+                logger.error(f"MinasTaxi API error: {error_msg}")
+                raise MinasTaxiAPIError(f"API error: {error_msg}")
                 
             else:
-                # Outro erro
                 logger.error(f"Unexpected response code: {response.status_code}")
                 raise MinasTaxiAPIError(f"Unexpected response: {response.status_code}")
                 
@@ -179,6 +229,53 @@ class MinasTaxiClient:
             logger.error(f"Request exception: {e}")
             raise
     
+    def _extract_city(self, address: str) -> str:
+        """
+        Extrai cidade do endereço.
+        Assume padrão brasileiro: "Rua X, Bairro, Cidade, Estado"
+        
+        Args:
+            address: Endereço completo.
+            
+        Returns:
+            Nome da cidade ou "Belo Horizonte" como padrão.
+        """
+        if not address:
+            return "Belo Horizonte"
+        
+        # Tenta extrair cidade (penúltimo item antes do estado)
+        parts = [p.strip() for p in address.split(',')]
+        
+        if len(parts) >= 2:
+            # Verifica se o último é um estado (2 letras)
+            if len(parts[-1]) == 2:
+                return parts[-2] if len(parts) >= 2 else "Belo Horizonte"
+        
+        return "Belo Horizonte"
+    
+    def _extract_state(self, address: str) -> str:
+        """
+        Extrai estado do endereço.
+        
+        Args:
+            address: Endereço completo.
+            
+        Returns:
+            Sigla do estado ou "MG" como padrão.
+        """
+        if not address:
+            return "MG"
+        
+        # Busca por padrão de estado (2 letras maiúsculas no final)
+        parts = [p.strip() for p in address.split(',')]
+        
+        if parts:
+            last_part = parts[-1].strip()
+            if len(last_part) == 2 and last_part.isupper():
+                return last_part
+        
+        return "MG"
+    
     def _validate_payload(self, payload: Dict):
         """
         Valida o payload antes de enviar para a API.
@@ -189,28 +286,51 @@ class MinasTaxiClient:
         Raises:
             ValueError: Se o payload for inválido.
         """
-        # Validações básicas para o formato Mock API
-        required_fields = ['passenger_name', 'passenger_phone', 'pickup_address']
+        required_fields = [
+            'partner', 'user', 'password', 'request_id', 
+            'pickup_time', 'category', 'passenger_name', 
+            'passenger_phone_number', 'users'
+        ]
         
         for field in required_fields:
-            if not payload.get(field):
+            if field not in payload or not payload[field]:
                 raise ValueError(f"Missing required field: {field}")
+        
+        # Valida users array
+        if not isinstance(payload['users'], list) or len(payload['users']) == 0:
+            raise ValueError("users array must contain at least one passenger")
+        
+        # Valida primeiro user
+        first_user = payload['users'][0]
+        if not first_user.get('pickup'):
+            raise ValueError("First user must have pickup location")
     
-    def get_order_status(self, order_id: str) -> Dict:
+    def get_ride_details(self, ride_id: str) -> Dict:
         """
-        Consulta o status de um pedido na API MinasTaxi.
+        Consulta detalhes e status de uma corrida (rideDetails).
         
         Args:
-            order_id: ID do pedido retornado pela API.
+            ride_id: ID da corrida retornado por rideCreate.
             
         Returns:
-            Dados do status do pedido.
+            Dados completos da corrida incluindo status, motorista, preço, etc.
         """
-        endpoint = f"{self.api_url}/orders/{order_id}"
+        request_id = self._generate_request_id()
+        
+        payload = {
+            "partner": "1",
+            "user": self.user_id,
+            "password": self.password,
+            "request_id": request_id,
+            "ride_id": ride_id
+        }
+        
+        endpoint = f"{self.api_url}/rideDetails"
         
         try:
-            response = requests.get(
+            response = requests.post(
                 endpoint,
+                json=payload,
                 headers=self.headers,
                 timeout=self.timeout
             )
@@ -218,35 +338,118 @@ class MinasTaxiClient:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger.error(f"Failed to get order status: {response.status_code}")
+                logger.error(f"Failed to get ride details: {response.status_code}")
                 return {}
                 
         except Exception as e:
-            logger.error(f"Error getting order status: {e}")
+            logger.error(f"Error getting ride details: {e}")
             return {}
+    
+    def cancel_ride(self, ride_id: str, reason: str = "Cliente solicitou cancelamento") -> bool:
+        """
+        Cancela uma corrida (rideCancel).
+        
+        Args:
+            ride_id: ID da corrida a cancelar.
+            reason: Motivo do cancelamento.
+            
+        Returns:
+            True se cancelamento foi aceito.
+        """
+        request_id = self._generate_request_id()
+        
+        payload = {
+            "partner": "1",
+            "user": self.user_id,
+            "password": self.password,
+            "request_id": request_id,
+            "ride_id": ride_id,
+            "cancel_reason": reason
+        }
+        
+        endpoint = f"{self.api_url}/rideCancel"
+        
+        try:
+            response = requests.post(
+                endpoint,
+                json=payload,
+                headers=self.headers,
+                timeout=self.timeout
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('cancel_accepted', False)
+            else:
+                logger.error(f"Failed to cancel ride: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error canceling ride: {e}")
+            return False
+    
+    def send_driver_message(self, ride_id: str, message: str) -> bool:
+        """
+        Envia mensagem para o motorista (driverMessage).
+        
+        Args:
+            ride_id: ID da corrida.
+            message: Mensagem a enviar.
+            
+        Returns:
+            True se mensagem foi enviada.
+        """
+        request_id = self._generate_request_id()
+        
+        payload = {
+            "partner": "1",
+            "user": self.user_id,
+            "password": self.password,
+            "request_id": request_id,
+            "ride_id": ride_id,
+            "msg": message
+        }
+        
+        endpoint = f"{self.api_url}/driverMessage"
+        
+        try:
+            response = requests.post(
+                endpoint,
+                json=payload,
+                headers=self.headers,
+                timeout=self.timeout
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('success', False)
+            else:
+                logger.error(f"Failed to send message: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending message: {e}")
+            return False
     
     def test_connection(self) -> bool:
         """
         Testa a conexão com a API MinasTaxi.
+        Como a API não tem endpoint /health, tenta fazer uma requisição simples.
         
         Returns:
             True se a conexão for bem-sucedida.
         """
-        endpoint = f"{self.api_url}/health"
-        
         try:
+            # Tenta acessar a URL base
             response = requests.get(
-                endpoint,
+                self.api_url,
                 headers=self.headers,
                 timeout=5
             )
             
-            if response.status_code == 200:
-                logger.info("MinasTaxi API connection test successful")
-                return True
-            else:
-                logger.warning(f"API health check returned: {response.status_code}")
-                return False
+            # Qualquer resposta (mesmo erro) indica que o servidor está acessível
+            logger.info(f"MinasTaxi API is accessible (status: {response.status_code})")
+            return True
                 
         except Exception as e:
             logger.error(f"API connection test failed: {e}")

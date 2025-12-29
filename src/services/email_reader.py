@@ -33,7 +33,7 @@ class EmailReader:
         user: str,
         password: str,
         folder: str = "INBOX",
-        subject_filter: str = "Novo Agendamento"
+        subject_filter: str = "PROGRAMAÇÃO"
     ):
         """
         Inicializa o leitor de e-mails.
@@ -44,7 +44,7 @@ class EmailReader:
             user: Usuário/e-mail para login.
             password: Senha ou App Password.
             folder: Pasta a ser monitorada.
-            subject_filter: Texto a buscar no assunto.
+            subject_filter: Texto a buscar no assunto (padrão: "PROGRAMAÇÃO" para capturar emails de táxi/carro).
         """
         self.host = host
         self.port = port

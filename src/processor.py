@@ -75,8 +75,10 @@ class TaxiOrderProcessor:
         
         # MinasTaxi Client
         self.minastaxi_client = MinasTaxiClient(
-            api_url=os.getenv('MINASTAXI_API_URL', 'https://api.minastaxi.com.br'),
-            api_key=os.getenv('MINASTAXI_API_KEY'),
+            api_url=os.getenv('MINASTAXI_API_URL', 'https://vm2c.taxifone.com.br:11048'),
+            user_id=os.getenv('MINASTAXI_USER_ID'),
+            password=os.getenv('MINASTAXI_PASSWORD'),
+            auth_header=os.getenv('MINASTAXI_AUTH_HEADER', 'Basic Original'),
             timeout=int(os.getenv('MINASTAXI_TIMEOUT', 30)),
             max_retries=int(os.getenv('MINASTAXI_RETRY_ATTEMPTS', 3))
         )
@@ -236,17 +238,7 @@ class TaxiOrderProcessor:
             logger.info(f"Dispatching order {order.id} to MinasTaxi...")
             
             try:
-                response = self.minastaxi_client.dispatch_order(
-                    passenger_name=order.passenger_name,
-                    phone=order.phone,
-                    pickup_address=order.pickup_address,
-                    pickup_lat=order.pickup_lat,
-                    pickup_lng=order.pickup_lng,
-                    pickup_time=order.pickup_time,
-                    dropoff_address=order.dropoff_address,
-                    dropoff_lat=order.dropoff_lat,
-                    dropoff_lng=order.dropoff_lng
-                )
+                response = self.minastaxi_client.dispatch_order(order)
                 
                 # Sucesso
                 order.status = OrderStatus.DISPATCHED
@@ -318,17 +310,7 @@ class TaxiOrderProcessor:
             try:
                 # Tenta dispatch novamente se já tem coordenadas
                 if order.pickup_lat and order.pickup_lng:
-                    response = self.minastaxi_client.dispatch_order(
-                        passenger_name=order.passenger_name,
-                        phone=order.phone,
-                        pickup_address=order.pickup_address,
-                        pickup_lat=order.pickup_lat,
-                        pickup_lng=order.pickup_lng,
-                        pickup_time=order.pickup_time,
-                        dropoff_address=order.dropoff_address,
-                        dropoff_lat=order.dropoff_lat,
-                        dropoff_lng=order.dropoff_lng
-                    )
+                    response = self.minastaxi_client.dispatch_order(order)
                     
                     order.status = OrderStatus.DISPATCHED
                     order.minastaxi_order_id = response.get('order_id')

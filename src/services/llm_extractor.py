@@ -22,28 +22,68 @@ class LLMExtractor:
     """
     
     # Prompt de sistema otimizado para extração de dados de pedidos de táxi
-    SYSTEM_PROMPT = """Você é um assistente especializado em extrair dados estruturados de pedidos de táxi recebidos via e-mail.
+    SYSTEM_PROMPT = """Você é um assistente especializado em extrair dados estruturados de pedidos de táxi/transporte da CSN Mineração.
 
-Sua tarefa é analisar o corpo do e-mail e extrair APENAS os seguintes campos em formato JSON:
+Os emails seguem estes padrões:
+- Assunto: "PROGRAMAÇÃO DE TAXI/CARRO" + horário
+- Corpo: Texto livre ou tabela com dados dos passageiros
+- CC: Código de centro de custo (ex: CC:20086)
+- Passageiros: Nome, Matrícula (MIN/MIO/MIP), Telefone (OPCIONAL)
+- Locais: Podem ser siglas (CSN, BH, MARIANA, LAFAIETE) ou endereços completos
+- Horários: Relativos (hoje, amanhã) ou datas específicas
+
+MAPEAMENTO DE LOCAIS:
+- CSN = CSN Mineração, Congonhas, MG (Coordenadas aproximadas: -20.5033, -43.8569)
+- BH = Belo Horizonte, MG
+- MARIANA = Mariana, MG  
+- LAFAIETE/CONSELHEIRO LAFAIETE = Conselheiro Lafaiete, MG
+- CONGONHAS = Congonhas, MG
+
+Extraia os seguintes campos em formato JSON:
 
 {{
-  "passenger_name": "Nome completo do passageiro",
-  "phone": "Telefone com DDD (formato: XX XXXXX-XXXX ou similar)",
-  "pickup_address": "Endereço completo de coleta (rua, número, bairro, cidade)",
-  "dropoff_address": "Endereço completo de destino (ou null se não mencionado)",
-  "pickup_time": "Data e hora de coleta no formato ISO 8601 (YYYY-MM-DDTHH:MM:SS)"
+  "passenger_name": "Nome completo do primeiro passageiro (se múltiplos, separe com vírgula)",
+  "phone": "Telefone com DDD (formato: 31988888888 ou similar, remova parênteses e hífens). Se não houver telefone explícito, use string vazia ''",
+  "pickup_address": "Endereço/local de COLETA (origem). Se for sigla, expanda: CSN → 'CSN Mineração, Congonhas, MG'",
+  "dropoff_address": "Endereço/local de DESTINO. Se for sigla, expanda",
+  "pickup_time": "Data e hora de coleta no formato ISO 8601 (YYYY-MM-DDTHH:MM:SS-03:00)",
+  "notes": "Observações relevantes: CC, múltiplos passageiros, retorno programado, telefones adicionais, etc"
 }}
 
-REGRAS IMPORTANTES:
-1. Para horários relativos ("amanhã às 14h", "hoje às 15h30", "dia 25 às 10h"), converta para formato ISO 8601 absoluto.
-2. Se o ano não for mencionado, assuma o ano atual ou próximo (se a data já passou este ano).
-3. Se apenas a hora for mencionada, assuma que é para hoje.
-4. Use fuso horário de Brasília (America/Sao_Paulo).
-5. Se um campo não puder ser extraído com confiança, use null.
-6. Retorne APENAS o JSON, sem texto adicional antes ou depois.
-7. Normalize endereços: capitalize corretamente e inclua cidade se não mencionada (assuma Belo Horizonte, MG).
+REGRAS CRÍTICAS:
+1. **PRIORIDADE DE DADOS**: Se o email contém TABELA (linhas com │ ou ┌), os dados da tabela TÊM PRIORIDADE ABSOLUTA sobre texto livre. A última coluna da tabela geralmente é o destino. Ignore texto livre que conflite com dados tabulares.
 
-Data/hora de referência para conversões: {reference_datetime}"""
+2. **NOME DO PASSAGEIRO**: 
+   - Use o nome da primeira linha da tabela
+   - Se não houver nome explícito, use a matrícula: "Passageiro MIN7956" ou "Passageiro MIO9580"
+   - Para múltiplos passageiros, listar primeiro em passenger_name e todos em notes
+
+3. **ENDEREÇOS DE COLETA (pickup_address)**:
+   - Em tabelas, a penúltima coluna geralmente é origem
+   - Para múltiplos passageiros com endereços diferentes, use o PRIMEIRO endereço da lista
+   - Liste todos os endereços em notes: "Múltiplos endereços: [lista]"
+   - Expanda siglas: CSN → "CSN Mineração, Congonhas, MG"
+
+4. **ENDEREÇOS DE DESTINO (dropoff_address)**:
+   - Em tabelas, a ÚLTIMA coluna é o destino
+   - Se texto livre diz "destino X" mas tabela mostra "Y", use Y da tabela
+   - Expanda siglas: BH → "Belo Horizonte, MG", MARIANA → "Mariana, MG"
+
+5. **HORÁRIOS**:
+   - "amanhã 16:00H" → converter para data/hora absoluta ISO 8601
+   - "hoje" → usar data atual + hora mencionada
+   - Sempre incluir timezone de Brasília (-03:00) no pickup_time
+
+6. **TELEFONES**:
+   - Remover caracteres especiais, manter apenas números com DDD
+   - Se não houver telefone explícito, deixar campo vazio ''
+   - Telefones adicionais vão em notes
+
+7. **RETORNO**: Se mencionar "RETORNO", incluir horário de retorno nas notes
+
+8. **FORMATO DE SAÍDA**: Retorne APENAS JSON válido, sem texto adicional ou markdown
+
+Data/hora de referência: {reference_datetime}"""
     
     def __init__(self, api_key: str, model: str = "gpt-4-turbo-preview"):
         """
@@ -122,6 +162,10 @@ Data/hora de referência para conversões: {reference_datetime}"""
             if data.get('pickup_time'):
                 data['pickup_time'] = self._normalize_datetime(data['pickup_time'])
             
+            # Normaliza nome do campo de destino (LLM pode retornar dropoff ou destination)
+            if 'dropoff_address' in data and 'destination_address' not in data:
+                data['destination_address'] = data['dropoff_address']
+            
             logger.info(f"Successfully extracted data: {data.get('passenger_name')}")
             return data
             
@@ -146,12 +190,16 @@ Data/hora de referência para conversões: {reference_datetime}"""
             True se válido, False caso contrário.
         """
         # Campos obrigatórios
-        required_fields = ['passenger_name', 'phone', 'pickup_address', 'pickup_time']
+        required_fields = ['passenger_name', 'pickup_address', 'pickup_time']
         
         for field in required_fields:
             if field not in data or data[field] is None or data[field] == "":
                 logger.warning(f"Missing or empty required field: {field}")
                 return False
+        
+        # Phone é opcional, mas logga warning se não tiver
+        if 'phone' not in data or not data['phone']:
+            logger.warning("Phone field is missing or empty - ordem pode falhar no dispatch")
         
         return True
     
