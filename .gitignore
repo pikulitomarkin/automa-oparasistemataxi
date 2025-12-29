@@ -27,9 +27,11 @@ wheels/
 .env
 .env.*
 .venv
+*.env
 
 # Sensitive Config Files (não commitar)
 .env.production
+.env.local
 RAILWAY_VARS.txt
 
 # Database

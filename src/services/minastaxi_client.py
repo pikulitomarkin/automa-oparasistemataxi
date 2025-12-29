@@ -5,9 +5,13 @@ Documentação completa em: docs/API_MINASTAXI.md
 import logging
 import requests
 import uuid
+import urllib3
+import ssl
 from typing import Optional, Dict
 from retry import retry
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
 from ..models.order import Order
 
 logger = logging.getLogger(__name__)
@@ -16,6 +20,27 @@ logger = logging.getLogger(__name__)
 class MinasTaxiAPIError(Exception):
     """Exceção customizada para erros da API MinasTaxi."""
     pass
+
+
+class LegacyHTTPAdapter(HTTPAdapter):
+    """
+    Adapter HTTP customizado para suportar APIs com SSL/TLS legado.
+    Permite conexões com TLS 1.0, 1.1 e ciphers antigos.
+    """
+    def init_poolmanager(self, *args, **kwargs):
+        # Cria contexto SSL que aceita protocolos legados
+        ctx = create_urllib3_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        # Remove todas as restrições de versão TLS
+        ctx.options &= ~ssl.OP_NO_SSLv2
+        ctx.options &= ~ssl.OP_NO_SSLv3
+        ctx.options &= ~ssl.OP_NO_TLSv1
+        ctx.options &= ~ssl.OP_NO_TLSv1_1
+        # Define ciphers mais permissivos (inclui ciphers legados)
+        ctx.set_ciphers('DEFAULT:@SECLEVEL=1')
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
 
 
 class MinasTaxiClient:
@@ -57,7 +82,15 @@ class MinasTaxiClient:
             'User-Agent': 'TaxiAutomationSystem/1.0'
         }
         
+        # Cria sessão HTTP com adapter customizado para SSL legado
+        self.session = requests.Session()
+        self.session.mount('https://', LegacyHTTPAdapter())
+        
+        # Desabilita warnings de SSL
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
         logger.info(f"MinasTaxi client initialized for {api_url} (User: {user_id})")
+        logger.warning("Using legacy SSL/TLS adapter for compatibility with old APIs")
     
     def _datetime_to_unix(self, dt: datetime) -> str:
         """
@@ -175,11 +208,13 @@ class MinasTaxiClient:
             logger.info(f"Dispatching order for {order.passenger_name} to MinasTaxi API")
             logger.debug(f"Request ID: {request_id}")
             
-            response = requests.post(
+            # Usa a sessão com adapter SSL customizado
+            response = self.session.post(
                 endpoint,
                 json=payload,
                 headers=self.headers,
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False  # Desabilita verificação SSL
             )
             
             # Log da requisição

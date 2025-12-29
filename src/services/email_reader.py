@@ -93,16 +93,27 @@ class EmailReader:
                 # Calcula data de corte
                 date_since = datetime.now() - timedelta(days=days_back)
                 
-                # Busca e-mails não lidos com o assunto específico
+                # Busca todos os emails não lidos (sem filtro de assunto para evitar encoding)
+                # e filtra manualmente
                 criteria = AND(
-                    subject=self.subject_filter,
                     seen=False,
                     date_gte=date_since.date()
                 )
                 
+                logger.info(f"Searching for unseen emails since {date_since.date()}")
+                
                 for msg in mailbox.fetch(criteria, mark_seen=mark_as_seen):
                     # Extrai o corpo do e-mail (texto plano ou HTML)
                     body = msg.text or msg.html or ""
+                    
+                    # Filtra manualmente pelo assunto (case-insensitive)
+                    if self.subject_filter:
+                        subject_upper = msg.subject.upper() if msg.subject else ""
+                        filter_upper = self.subject_filter.upper()
+                        
+                        if filter_upper not in subject_upper:
+                            logger.debug(f"Skipping email with subject '{msg.subject}' - does not match filter '{self.subject_filter}'")
+                            continue
                     
                     email_msg = EmailMessage(
                         uid=msg.uid,
