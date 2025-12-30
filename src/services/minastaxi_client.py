@@ -24,22 +24,46 @@ class MinasTaxiAPIError(Exception):
 
 class LegacyHTTPAdapter(HTTPAdapter):
     """
-    Adapter HTTP customizado para suportar APIs com SSL/TLS legado.
-    Permite conexões com TLS 1.0, 1.1 e ciphers antigos.
+    Adapter HTTP ultra-compatível para APIs com SSL/TLS legacy.
     """
     def init_poolmanager(self, *args, **kwargs):
-        # Cria contexto SSL que aceita protocolos legados
-        ctx = create_urllib3_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        # Remove todas as restrições de versão TLS
-        ctx.options &= ~ssl.OP_NO_SSLv2
-        ctx.options &= ~ssl.OP_NO_SSLv3
-        ctx.options &= ~ssl.OP_NO_TLSv1
-        ctx.options &= ~ssl.OP_NO_TLSv1_1
-        # Define ciphers mais permissivos (inclui ciphers legados)
-        ctx.set_ciphers('DEFAULT:@SECLEVEL=1')
-        kwargs['ssl_context'] = ctx
+        import urllib3.util.ssl_
+        
+        # Cria contexto SSL ultra-permissivo
+        try:
+            # Método 1: Contexto default com configurações mínimas
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False  
+            ctx.verify_mode = ssl.CERT_NONE
+            
+            # Remove restrições de segurança
+            ctx.options = 0
+            
+            # Força protocolos legados
+            try:
+                ctx.minimum_version = ssl.TLSVersion.SSLv3
+            except:
+                pass
+            
+            try:
+                ctx.maximum_version = ssl.TLSVersion.TLSv1_2  
+            except:
+                pass
+            
+            # Ciphers ultra-permissivos
+            try:
+                ctx.set_ciphers('ALL:@SECLEVEL=0')
+            except:
+                try:
+                    ctx.set_ciphers('DEFAULT:@SECLEVEL=0')
+                except:
+                    ctx.set_ciphers('ALL')
+            
+            kwargs['ssl_context'] = ctx
+            
+        except Exception as e:
+            logger.warning(f"Fallback para poolmanager padrão: {e}")
+            
         return super().init_poolmanager(*args, **kwargs)
 
 
@@ -497,23 +521,24 @@ class MinasTaxiClient:
     def test_connection(self) -> bool:
         """
         Testa a conexão com a API MinasTaxi.
-        Como a API não tem endpoint /health, tenta fazer uma requisição simples.
         
         Returns:
             True se a conexão for bem-sucedida.
         """
         try:
-            # Tenta acessar a URL base
-            response = requests.get(
+            logger.info("Testando conexão com API MinasTaxi...")
+            
+            # Usa a sessão já configurada com adapter SSL
+            response = self.session.get(
                 self.api_url,
                 headers=self.headers,
-                timeout=5
+                timeout=10,
+                verify=False
             )
             
-            # Qualquer resposta (mesmo erro) indica que o servidor está acessível
-            logger.info(f"MinasTaxi API is accessible (status: {response.status_code})")
+            logger.info(f"✅ API respondeu com status: {response.status_code}")
             return True
                 
         except Exception as e:
-            logger.error(f"API connection test failed: {e}")
+            logger.error(f"❌ Falha na conexão: {e}")
             return False
