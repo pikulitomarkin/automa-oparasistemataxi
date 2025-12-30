@@ -13,6 +13,7 @@ from .services.geocoding_service import GeocodingService
 from .services.minastaxi_client import MinasTaxiClient, MinasTaxiAPIError
 from .services.whatsapp_notifier import WhatsAppNotifier
 from .services.database import DatabaseManager
+from .services.route_optimizer import RouteOptimizer
 from .models import Order, OrderStatus
 
 # Carrega variáveis de ambiente
@@ -199,6 +200,10 @@ class TaxiOrderProcessor:
             order.pickup_address = extracted_data.get('pickup_address')
             order.dropoff_address = extracted_data.get('dropoff_address')
             
+            # Múltiplos passageiros (novo)
+            order.passengers = extracted_data.get('passengers', [])
+            order.has_return = extracted_data.get('has_return', False)
+            
             # Parse pickup_time
             if extracted_data.get('pickup_time'):
                 try:
@@ -207,26 +212,80 @@ class TaxiOrderProcessor:
                 except:
                     logger.warning("Failed to parse pickup_time")
             
+            # Parse return_time se houver
+            if extracted_data.get('return_time'):
+                try:
+                    from dateutil import parser
+                    order.return_time = parser.parse(extracted_data['return_time'])
+                except:
+                    logger.warning("Failed to parse return_time")
+            
             order.status = OrderStatus.EXTRACTED
             
+            # VERIFICA SE TEM RETORNO - CRIA 2 ORDERS (IDA + VOLTA)
+            if order.has_return and order.return_time:
+                logger.info("Order has return trip - will create 2 orders (outbound + return)")
+                return self._process_round_trip(email, order, extracted_data)
+            
+            # Continua processamento normal (sem retorno)
+            
             # FASE 2.5: Geocoding
-            logger.info("Geocoding pickup address...")
-            pickup_coords = self.geocoder.geocode_address(order.pickup_address)
+            logger.info("Geocoding addresses...")
             
-            if not pickup_coords:
-                order.status = OrderStatus.MANUAL_REVIEW
-                order.error_message = "Failed to geocode pickup address"
-                order.id = self.db.create_order(order)
-                logger.warning(f"Order {order.id} requires manual review - geocoding failed")
-                return order
-            
-            order.pickup_lat, order.pickup_lng = pickup_coords
-            
-            # Geocode dropoff se fornecido
+            # Geocode destino primeiro
+            destination_coords = None
             if order.dropoff_address:
                 dropoff_coords = self.geocoder.geocode_address(order.dropoff_address)
                 if dropoff_coords:
                     order.dropoff_lat, order.dropoff_lng = dropoff_coords
+                    destination_coords = dropoff_coords
+                    logger.info(f"Destination geocoded: {order.dropoff_lat}, {order.dropoff_lng}")
+            
+            # Geocode endereços de múltiplos passageiros se houver
+            if order.passengers:
+                logger.info(f"Geocoding {len(order.passengers)} passenger addresses...")
+                for idx, passenger in enumerate(order.passengers):
+                    coords = self.geocoder.geocode_address(passenger.get('address', ''))
+                    if coords:
+                        passenger['lat'] = coords[0]
+                        passenger['lng'] = coords[1]
+                        logger.debug(f"Passenger {passenger.get('name')} geocoded: {coords}")
+                
+                # Otimizar rota de coleta
+                logger.info("Optimizing pickup route...")
+                optimized_passengers = RouteOptimizer.optimize_pickup_sequence(
+                    order.passengers, destination_coords
+                )
+                order.passengers = optimized_passengers
+                
+                # Usar primeiro passageiro como referência
+                if order.passengers and 'lat' in order.passengers[0]:
+                    order.pickup_lat = order.passengers[0]['lat']
+                    order.pickup_lng = order.passengers[0]['lng']
+                    # Atualizar pickup_address para múltiplas paradas
+                    addresses = [p['address'] for p in order.passengers[:2]]
+                    order.pickup_address = f"Múltiplas paradas: {' → '.join(addresses)}" + ("..." if len(order.passengers) > 2 else "")
+                    logger.info(f"Route optimized: {len(order.passengers)} stops")
+                else:
+                    # Fallback para geocoding do endereço original
+                    pickup_coords = self.geocoder.geocode_address(order.pickup_address)
+                    if not pickup_coords:
+                        order.status = OrderStatus.MANUAL_REVIEW
+                        order.error_message = "Failed to geocode pickup address"
+                        order.id = self.db.create_order(order)
+                        logger.warning(f"Order {order.id} requires manual review - geocoding failed")
+                        return order
+                    order.pickup_lat, order.pickup_lng = pickup_coords
+            else:
+                # Passageiro único - geocoding tradicional
+                pickup_coords = self.geocoder.geocode_address(order.pickup_address)
+                if not pickup_coords:
+                    order.status = OrderStatus.MANUAL_REVIEW
+                    order.error_message = "Failed to geocode pickup address"
+                    order.id = self.db.create_order(order)
+                    logger.warning(f"Order {order.id} requires manual review - geocoding failed")
+                    return order
+                order.pickup_lat, order.pickup_lng = pickup_coords
             
             order.status = OrderStatus.GEOCODED
             
@@ -295,6 +354,155 @@ class TaxiOrderProcessor:
             logger.error(f"Error processing order: {e}")
         
         return order
+    
+    def _process_round_trip(self, email: EmailMessage, base_order: Order, extracted_data: dict) -> Order:
+        """
+        Processa viagem de ida e volta (2 orders).
+        
+        Args:
+            email: Email original
+            base_order: Order base com dados extraídos
+            extracted_data: Dados do LLM
+            
+        Returns:
+            Order da viagem de IDA (a de VOLTA é criada separadamente)
+        """
+        logger.info("Processing round trip - creating 2 orders")
+        
+        # ========== ORDER 1: IDA ==========
+        outbound_order = base_order
+        outbound_order.raw_email_body = f"{outbound_order.raw_email_body}\n[VIAGEM: IDA]"
+        
+        logger.info("Processing OUTBOUND trip...")
+        
+        # Geocoding e otimização para IDA
+        destination_coords = None
+        if outbound_order.dropoff_address:
+            dropoff_coords = self.geocoder.geocode_address(outbound_order.dropoff_address)
+            if dropoff_coords:
+                outbound_order.dropoff_lat, outbound_order.dropoff_lng = dropoff_coords
+                destination_coords = dropoff_coords
+        
+        # Geocoding múltiplos passageiros se houver
+        if outbound_order.passengers:
+            for passenger in outbound_order.passengers:
+                coords = self.geocoder.geocode_address(passenger.get('address', ''))
+                if coords:
+                    passenger['lat'] = coords[0]
+                    passenger['lng'] = coords[1]
+            
+            # Otimizar rota para IDA
+            optimized_passengers = RouteOptimizer.optimize_pickup_sequence(
+                outbound_order.passengers, destination_coords
+            )
+            outbound_order.passengers = optimized_passengers
+            
+            if outbound_order.passengers and 'lat' in outbound_order.passengers[0]:
+                outbound_order.pickup_lat = outbound_order.passengers[0]['lat']
+                outbound_order.pickup_lng = outbound_order.passengers[0]['lng']
+            else:
+                pickup_coords = self.geocoder.geocode_address(outbound_order.pickup_address)
+                if not pickup_coords:
+                    outbound_order.status = OrderStatus.MANUAL_REVIEW
+                    outbound_order.error_message = "Failed to geocode pickup address (outbound)"
+                    outbound_order.id = self.db.create_order(outbound_order)
+                    logger.warning(f"Outbound order {outbound_order.id} requires manual review")
+                    return outbound_order
+                outbound_order.pickup_lat, outbound_order.pickup_lng = pickup_coords
+        else:
+            # Passageiro único
+            pickup_coords = self.geocoder.geocode_address(outbound_order.pickup_address)
+            if not pickup_coords:
+                outbound_order.status = OrderStatus.MANUAL_REVIEW
+                outbound_order.error_message = "Failed to geocode pickup address (outbound)"
+                outbound_order.id = self.db.create_order(outbound_order)
+                logger.warning(f"Outbound order {outbound_order.id} requires manual review")
+                return outbound_order
+            outbound_order.pickup_lat, outbound_order.pickup_lng = pickup_coords
+            outbound_order.status = OrderStatus.MANUAL_REVIEW
+            outbound_order.error_message = "Failed to geocode pickup address (outbound)"
+            outbound_order.id = self.db.create_order(outbound_order)
+            logger.warning(f"Outbound order {outbound_order.id} requires manual review")
+            return outbound_order
+        
+        outbound_order.pickup_lat, outbound_order.pickup_lng = pickup_coords
+        
+        # Geocoding dropoff (destino - DELP, etc)
+        if outbound_order.dropoff_address:
+            dropoff_coords = self.geocoder.geocode_address(outbound_order.dropoff_address)
+            if dropoff_coords:
+                outbound_order.dropoff_lat, outbound_order.dropoff_lng = dropoff_coords
+        
+        outbound_order.status = OrderStatus.GEOCODED
+        outbound_order.id = self.db.create_order(outbound_order)
+        logger.info(f"Outbound order {outbound_order.id} created")
+        
+        # Dispatch IDA
+        try:
+            response = self.minastaxi_client.dispatch_order(outbound_order)
+            outbound_order.status = OrderStatus.DISPATCHED
+            outbound_order.minastaxi_order_id = response.get('order_id')
+            self.db.update_order(outbound_order)
+            logger.info(f"Outbound order {outbound_order.id} dispatched successfully")
+        except Exception as e:
+            outbound_order.status = OrderStatus.FAILED
+            outbound_order.error_message = f"Dispatch failed (outbound): {str(e)}"
+            self.db.update_order(outbound_order)
+            logger.error(f"Failed to dispatch outbound order: {e}")
+        
+        # ========== ORDER 2: VOLTA ==========
+        return_order = Order(
+            email_id=f"{email.uid}_return",
+            raw_email_body=f"{base_order.raw_email_body}\n[VIAGEM: VOLTA]",
+            passenger_name=base_order.passenger_name,
+            phone=base_order.phone,
+            passengers=base_order.passengers,
+            pickup_time=base_order.return_time,
+            status=OrderStatus.EXTRACTED
+        )
+        
+        # VOLTA: origem = destino da IDA, destino = origem da IDA
+        return_order.pickup_address = outbound_order.dropoff_address
+        return_order.dropoff_address = outbound_order.pickup_address
+        return_order.pickup_lat = outbound_order.dropoff_lat
+        return_order.pickup_lng = outbound_order.dropoff_lng
+        return_order.dropoff_lat = outbound_order.pickup_lat
+        return_order.dropoff_lng = outbound_order.pickup_lng
+        
+        logger.info("Processing RETURN trip...")
+        
+        return_order.status = OrderStatus.GEOCODED
+        return_order.id = self.db.create_order(return_order)
+        logger.info(f"Return order {return_order.id} created")
+        
+        # Dispatch VOLTA
+        try:
+            response = self.minastaxi_client.dispatch_order(return_order)
+            return_order.status = OrderStatus.DISPATCHED
+            return_order.minastaxi_order_id = response.get('order_id')
+            self.db.update_order(return_order)
+            logger.info(f"Return order {return_order.id} dispatched successfully")
+        except Exception as e:
+            return_order.status = OrderStatus.FAILED
+            return_order.error_message = f"Dispatch failed (return): {str(e)}"
+            self.db.update_order(return_order)
+            logger.error(f"Failed to dispatch return order: {e}")
+        
+        # Notificação WhatsApp para ambas as viagens
+        if self.whatsapp_enabled and self.whatsapp_notifier and base_order.phone:
+            try:
+                self.whatsapp_notifier.send_message(
+                    name=base_order.passenger_name or "Cliente",
+                    phone=base_order.phone,
+                    destination=f"IDA: {outbound_order.dropoff_address}, VOLTA: {return_order.dropoff_address}",
+                    status="Sucesso (Ida e Volta)"
+                )
+                logger.info("WhatsApp notification sent for round trip")
+            except Exception as whatsapp_error:
+                logger.warning(f"Failed to send WhatsApp notification: {whatsapp_error}")
+        
+        logger.info(f"Round trip processed: Outbound={outbound_order.id}, Return={return_order.id}")
+        return outbound_order
     
     def reprocess_failed_orders(self):
         """

@@ -47,7 +47,17 @@ Extraia os seguintes campos em formato JSON:
   "pickup_address": "Endereço/local de COLETA (origem). Se for sigla, expanda: CSN → 'CSN Mineração, Congonhas, MG'",
   "dropoff_address": "Endereço/local de DESTINO. Se for sigla, expanda",
   "pickup_time": "Data e hora de coleta no formato ISO 8601 (YYYY-MM-DDTHH:MM:SS-03:00)",
-  "notes": "Observações relevantes: CC, múltiplos passageiros, retorno programado, telefones adicionais, etc"
+  "notes": "Observações relevantes: CC, múltiplos passageiros, retorno programado, telefones adicionais, etc",
+  "passengers": [
+    {{
+      "name": "Nome completo do passageiro",
+      "phone": "Telefone do passageiro (apenas números com DDD)",
+      "address": "Endereço completo do passageiro"
+    }}
+  ],
+  "has_return": false,
+  "return_time": "Se houver retorno, horário ISO 8601, senão null",
+  "arrival_time": "Se mencionado horário de CHEGADA (não saída), colocar aqui em ISO 8601, senão null"
 }}
 
 REGRAS CRÍTICAS:
@@ -56,9 +66,15 @@ REGRAS CRÍTICAS:
 2. **NOME DO PASSAGEIRO**: 
    - Use o nome da primeira linha da tabela
    - Se não houver nome explícito, use a matrícula: "Passageiro MIN7956" ou "Passageiro MIO9580"
-   - Para múltiplos passageiros, listar primeiro em passenger_name e todos em notes
+   - Para múltiplos passageiros, listar TODOS no array "passengers" com nome, telefone e endereço individual
 
-3. **ENDEREÇOS DE COLETA (pickup_address)**:
+3. **MÚLTIPLOS PASSAGEIROS**:
+   - Se houver VÁRIOS passageiros com endereços diferentes, extrair cada um separadamente no array "passengers"
+   - Exemplo: Ellen (Rua Piuai, 1056), Soraria (Rua Maria Ana), etc.
+   - O campo "pickup_address" deve conter o PRIMEIRO endereço (coleta inicial)
+   - Todos os endereços individuais devem estar no array "passengers"
+
+4. **ENDEREÇOS DE COLETA (pickup_address)**:
    - Em tabelas, a penúltima coluna geralmente é origem
    - Para múltiplos passageiros com endereços diferentes, use o PRIMEIRO endereço da lista
    - Liste todos os endereços em notes: "Múltiplos endereços: [lista]"
@@ -73,13 +89,20 @@ REGRAS CRÍTICAS:
    - "amanhã 16:00H" → converter para data/hora absoluta ISO 8601
    - "hoje" → usar data atual + hora mencionada
    - Sempre incluir timezone de Brasília (-03:00) no pickup_time
+   - **IMPORTANTE**: Se mencionar "Horário de chegada" (ex: 05H40), este é o horário que o passageiro DEVE CHEGAR no destino
+   - Para "horário de chegada", colocar em "arrival_time", e calcular pickup_time como: arrival_time - 30 minutos
+   - NUNCA calcule mais que 30 minutos de diferença entre pickup e arrival
+   - Se não houver "horário de chegada", usar o horário mencionado como pickup_time direto
 
 6. **TELEFONES**:
    - Remover caracteres especiais, manter apenas números com DDD
    - Se não houver telefone explícito, deixar campo vazio ''
    - Telefones adicionais vão em notes
 
-7. **RETORNO**: Se mencionar "RETORNO", incluir horário de retorno nas notes
+7. **RETORNO**: 
+   - Se mencionar "RETORNO" ou "Horário de retorno", marcar has_return=true
+   - Extrair horário de retorno em return_time (ISO 8601)
+   - Sistema criará 2 viagens: IDA e VOLTA
 
 8. **FORMATO DE SAÍDA**: Retorne APENAS JSON válido, sem texto adicional ou markdown
 
@@ -161,6 +184,26 @@ Data/hora de referência: {reference_datetime}"""
             # Normaliza o horário se necessário
             if data.get('pickup_time'):
                 data['pickup_time'] = self._normalize_datetime(data['pickup_time'])
+            
+            # Se tem arrival_time mas pickup_time está muito longe, ajusta para 30min antes
+            if data.get('arrival_time') and data.get('pickup_time'):
+                arrival_dt = parser.parse(data['arrival_time'])
+                pickup_dt = parser.parse(data['pickup_time'])
+                
+                # Calcula diferença
+                diff = arrival_dt - pickup_dt
+                diff_minutes = diff.total_seconds() / 60
+                
+                # Se diferença > 30 minutos, ajusta para 30 minutos antes
+                if diff_minutes > 30:
+                    from datetime import timedelta
+                    pickup_dt = arrival_dt - timedelta(minutes=30)
+                    data['pickup_time'] = pickup_dt.isoformat()
+                    logger.info(f"Adjusted pickup_time to 30 minutes before arrival: {data['pickup_time']}")
+            
+            # Normaliza horário de retorno se existir
+            if data.get('return_time'):
+                data['return_time'] = self._normalize_datetime(data['return_time'])
             
             # Normaliza nome do campo de destino (LLM pode retornar dropoff ou destination)
             if 'dropoff_address' in data and 'destination_address' not in data:

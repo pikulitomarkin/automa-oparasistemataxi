@@ -149,6 +149,49 @@ class MinasTaxiClient:
         # Converte pickup_time para UNIX timestamp
         unix_time = self._datetime_to_unix(order.pickup_time)
         
+        # Determina quantidade de passageiros
+        passengers_count = len(order.passengers) if order.passengers else 1
+        
+        # Monta array de users
+        users = []
+        if order.passengers:
+            # Múltiplos passageiros - usa coordenadas individuais se disponíveis
+            for idx, passenger in enumerate(order.passengers, 1):
+                # Usa coordenadas específicas do passageiro se disponível, senão usa do order
+                passenger_lat = passenger.get('lat', order.pickup_lat)
+                passenger_lng = passenger.get('lng', order.pickup_lng)
+                
+                users.append({
+                    "id": idx,
+                    "sequence": idx,
+                    "name": passenger.get('name', order.passenger_name),
+                    "phone": passenger.get('phone', order.phone),
+                    "pickup": {
+                        "address": passenger.get('address', order.pickup_address),
+                        "city": self._extract_city(passenger.get('address', order.pickup_address)),
+                        "state": self._extract_state(passenger.get('address', order.pickup_address)),
+                        "postal_code": "",
+                        "lat": str(passenger_lat),  # Coordenada específica do passageiro
+                        "lng": str(passenger_lng)   # Coordenada específica do passageiro
+                    }
+                })
+        else:
+            # Passageiro único (formato antigo)
+            users.append({
+                "id": 1,
+                "sequence": 1,
+                "name": order.passenger_name,
+                "phone": order.phone,
+                "pickup": {
+                    "address": order.pickup_address,
+                    "city": self._extract_city(order.pickup_address),
+                    "state": self._extract_state(order.pickup_address),
+                    "postal_code": "",
+                    "lat": str(order.pickup_lat),
+                    "lng": str(order.pickup_lng)
+                }
+            })
+        
         # Monta payload no formato Original Software
         payload = {
             "partner": "1",  # Fixo como "1" conforme padrão
@@ -157,28 +200,13 @@ class MinasTaxiClient:
             "request_id": request_id,
             "pickup_time": unix_time,
             "category": "taxi",  # Pode ser parametrizado depois
-            "passengers_no": 1,
+            "passengers_no": passengers_count,
             "suitcases_no": 0,
             "passenger_note": order.raw_email_body or "",
             "passenger_name": order.passenger_name,
-            "passenger_phone_number": order.phone,
+            "passenger_phone_number": order.phone or (users[0]['phone'] if users else ""),
             "payment_type": "ONLINE_PAYMENT",  # Padrão
-            "users": [
-                {
-                    "id": 1,
-                    "sequence": 1,
-                    "name": order.passenger_name,
-                    "phone": order.phone,
-                    "pickup": {
-                        "address": order.pickup_address,
-                        "city": self._extract_city(order.pickup_address),
-                        "state": self._extract_state(order.pickup_address),
-                        "postal_code": "",
-                        "lat": str(order.pickup_lat),
-                        "lng": str(order.pickup_lng)
-                    }
-                }
-            ]
+            "users": users
         }
         
         # Adiciona destino se fornecido

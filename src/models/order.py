@@ -4,7 +4,7 @@ Data models for taxi orders.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, List, Dict
 
 
 class OrderStatus(Enum):
@@ -42,6 +42,11 @@ class Order:
     
     # Horário
     pickup_time: Optional[datetime] = None
+    
+    # Múltiplos passageiros (novo)
+    passengers: List[Dict[str, str]] = field(default_factory=list)  # [{name, phone, address}]
+    has_return: bool = False
+    return_time: Optional[datetime] = None
     
     # Status e controle
     status: OrderStatus = OrderStatus.RECEIVED
