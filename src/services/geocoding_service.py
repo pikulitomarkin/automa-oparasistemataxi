@@ -63,43 +63,48 @@ class GeocodingService:
             logger.warning("Empty address provided for geocoding")
             return None
         
-        # Normaliza o endereço
+        # Normaliza o endereço e gera variantes para fallback
         normalized_address = self._normalize_address(address)
-        
-        for attempt in range(max_retries):
-            try:
-                location = self.geolocator.geocode(normalized_address)
-                
-                if location:
-                    lat, lng = location.latitude, location.longitude
-                    logger.info(
-                        f"Geocoded '{address}' -> ({lat:.6f}, {lng:.6f})"
-                    )
-                    return (lat, lng)
-                else:
-                    logger.warning(f"No results found for address: {address}")
-                    return None
-                    
-            except GeocoderTimedOut:
-                if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # Exponential backoff
-                    logger.warning(
-                        f"Geocoding timeout for '{address}', "
-                        f"retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(wait_time)
-                else:
-                    logger.error(f"Geocoding failed after {max_retries} attempts: {address}")
-                    return None
-                    
-            except GeocoderServiceError as e:
-                logger.error(f"Geocoding service error for '{address}': {e}")
-                return None
-                
-            except Exception as e:
-                logger.error(f"Unexpected error in geocoding '{address}': {e}")
-                return None
-        
+        variants = [normalized_address]
+        variants += self._generate_address_variants(normalized_address)
+
+        for idx, candidate in enumerate(variants):
+            for attempt in range(max_retries):
+                try:
+                    location = self.geolocator.geocode(candidate)
+
+                    if location:
+                        lat, lng = location.latitude, location.longitude
+                        logger.info(f"Geocoded '{address}' using '{candidate}' -> ({lat:.6f}, {lng:.6f})")
+                        return (lat, lng)
+                    else:
+                        logger.debug(f"No results for candidate: '{candidate}'")
+                        break  # tenta próxima variante
+
+                except GeocoderTimedOut:
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        logger.warning(
+                            f"Geocoding timeout for '{candidate}', retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(f"Geocoding failed after {max_retries} attempts for candidate: {candidate}")
+                        break
+
+                except GeocoderServiceError as e:
+                    logger.error(f"Geocoding service error for '{candidate}': {e}")
+                    break
+
+                except Exception as e:
+                    logger.error(f"Unexpected error in geocoding '{candidate}': {e}")
+                    break
+
+            # small delay between variant attempts for Nominatim
+            if not self.use_google:
+                time.sleep(0.5)
+
+        logger.warning(f"No results found for address after trying variants: {address}")
         return None
     
     def geocode_batch(
@@ -173,16 +178,77 @@ class GeocodingService:
         Returns:
             Endereço normalizado.
         """
-        # Remove espaços extras
-        normalized = " ".join(address.split())
-        
-        # Se não menciona cidade, adiciona Belo Horizonte, MG (padrão para táxis locais)
-        if "belo horizonte" not in normalized.lower() and "BH" not in normalized.upper():
-            # Verifica se já tem alguma cidade mencionada
-            if not any(city in normalized.lower() for city in ["minas gerais", "mg", ","]):
-                normalized += ", Belo Horizonte, MG, Brasil"
-        
+        # Remove espaços extras e caracteres de traço/en-dash squish
+        s = address.replace('\u2013', '-').replace('\u2014', '-')
+        s = s.replace('\u00A0', ' ')
+        normalized = " ".join(s.split())
+
+        # Remove tokens comuns que atrapalham geocoding (Número:, N°, BAIRRO etc.)
+        normalized = normalized.replace('Número:', 'Nº').replace('Número', 'Nº')
+        normalized = normalized.replace('BAIRRO', 'Bairro')
+
+        # Remove excessos de símbolos e parênteses longos
+        normalized = re.sub(r"\s*\([^\)]{50,}\)", "", normalized)
+
+        # Substitui múltiplas vírgulas por uma
+        normalized = re.sub(r",{2,}", ",", normalized)
+
+        # Se há ' - ' com quebras estranhas, normaliza para vírgula
+        normalized = normalized.replace(' - ', ', ')
+
+        # Expansões simples para empresas/locais conhecidos
+        known_mappings = {
+            'Delp Engenharia Vespasiano': 'Av. das Nações, 999, Distrito Industrial, Vespasiano, MG, Brasil',
+            'Delp Engenharia': 'Av. das Nações, 999, Distrito Industrial, Vespasiano, MG, Brasil',
+            'Aeroporto Confins': 'Aeroporto Internacional Tancredo Neves - Confins, MG'
+        }
+        for k, v in known_mappings.items():
+            if k.lower() in normalized.lower():
+                return v
+
+        # Se não menciona estado/cidade, adiciona Belo Horizonte, MG (padrão local)
+        lower = normalized.lower()
+        if not any(x in lower for x in ['mg', 'minas gerais', 'belo horizonte', 'belo-horizonte', 'vespasiano', 'contagem']):
+            normalized += ', Belo Horizonte, MG, Brasil'
+
         return normalized
+
+    def _generate_address_variants(self, normalized: str) -> list:
+        """
+        Gera variantes mais simples do endereço para aumentar chances de geocoding.
+        Estratégias:
+        - Remover conteúdo entre parênteses
+        - Manter somente logradouro + número + cidade
+        - Remover termos como 'Bairro' e 'Nº'
+        - Tentar versão curta com apenas logradouro + cidade
+        """
+        variants = []
+
+        # Strip parentheses content
+        no_paren = re.sub(r"\([^\)]*\)", '', normalized).strip()
+        if no_paren != normalized:
+            variants.append(no_paren)
+
+        # Remove tokens como 'Bairro', 'Nº', 'Número'
+        simple = re.sub(r'(?i)\b(Bairro|Bairro:|Nº|Nº:|Número|Número:)\b', '', no_paren)
+        simple = re.sub(r'\s{2,}', ' ', simple).strip()
+        if simple and simple not in variants:
+            variants.append(simple)
+
+        # Try just street + city (split by comma)
+        parts = [p.strip() for p in simple.split(',') if p.strip()]
+        if len(parts) >= 2:
+            short = ', '.join(parts[:2])
+            if 'brasil' not in short.lower():
+                short += ', Brasil'
+            variants.append(short)
+
+        # Last-resort: keep only last two parts (often city and state)
+        if len(parts) >= 2:
+            tail = ', '.join(parts[-2:])
+            variants.append(tail)
+
+        return variants
     
     def calculate_distance(
         self,
