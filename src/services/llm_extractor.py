@@ -170,11 +170,26 @@ Data/hora de referência: {reference_datetime}"""
             json_match = re.search(r'\{.*\}', content, re.DOTALL)
             if json_match:
                 content = json_match.group(0)
-            
+
             logger.info(f"JSON after cleanup: {content[:200]}...")  # Log após limpeza
-            
-            # Parse JSON
-            data = json.loads(content)
+
+            # Parse JSON (tenta reparar se falhar)
+            try:
+                data = json.loads(content)
+            except json.JSONDecodeError as jde:
+                logger.warning(f"Initial JSON parse failed: {jde}. Attempting repair...")
+                repaired = self._repair_json(content)
+                try:
+                    data = json.loads(repaired)
+                    logger.info("JSON parsed after repair")
+                except Exception as e2:
+                    logger.error(f"JSON repair failed: {e2}")
+                    # Tenta fallback por regex no corpo do e-mail
+                    fallback = self._fallback_parse(email_body)
+                    if fallback:
+                        logger.info("Fallback regex parser returned data")
+                        return fallback
+                    raise
             
             # Validação básica
             if not self._validate_extracted_data(data):
@@ -290,3 +305,98 @@ Data/hora de referência: {reference_datetime}"""
         
         logger.error(f"Failed to extract data after {max_retries + 1} attempts")
         return None
+
+    def _repair_json(self, content: str) -> str:
+        """
+        Tenta reparar JSON truncado ou com vírgulas finais comuns.
+        Estratégia simples e prática:
+        - Remove caracteres de code fences restantes
+        - Remove vírgulas finais antes de '}' ou ']' 
+        - Tenta balancear chaves adicionando '}' ao final se necessário
+        - Substitui aspas simples por aspas duplas quando for seguro
+        """
+        s = content.strip()
+        # Remove backticks e markers
+        s = re.sub(r'```+', '', s)
+        # Substitui aspas simples por duplas (cuidado): só quando não houver aspas duplas
+        if "'" in s and '"' not in s:
+            s = s.replace("'", '"')
+
+        # Remove vírgulas finais antes de fechamento
+        s = re.sub(r',\s*(\}|\])', r'\1', s)
+
+        # Balanceamento simples de chaves
+        open_braces = s.count('{')
+        close_braces = s.count('}')
+        if close_braces < open_braces:
+            s += '}' * (open_braces - close_braces)
+
+        # Balanceamento de colchetes
+        open_brackets = s.count('[')
+        close_brackets = s.count(']')
+        if close_brackets < open_brackets:
+            s += ']' * (open_brackets - close_brackets)
+
+        return s
+
+    def _fallback_parse(self, email_body: str) -> Optional[Dict]:
+        """
+        Parseia o corpo do e-mail por heurísticas (regex) para extrair campos essenciais
+        quando o LLM não retorna JSON válido. Retorna um dict parcial que segue o
+        formato mínimo necessário para inserção no pipeline.
+        """
+        try:
+            text = email_body
+            # Phones: pega o primeiro número com 8-13 dígitos
+            phones = re.findall(r'\b(55)?\s*\(?0?\d{2}\)?\s*\d{4,9}\b', text)
+            # Melhor forma: extrair sequências de dígitos com 10-13 caracteres
+            phones_alt = re.findall(r'(?:\+?55)?\D*(\d{10,13})', text)
+            phone = phones_alt[0] if phones_alt else ''
+
+            # Names: linhas que começam com Nome: or Passageiro:
+            name_match = re.search(r'(?:Nome|Passageiro)[:\s-]+([A-ZÀ-Ÿa-zà-ÿ\s]+)', text)
+            name = name_match.group(1).strip() if name_match else ''
+
+            # Pickup: procurar 'Origem' ou 'Pickup' ou linhas com 'Rua'/'Av.'
+            pickup_match = re.search(r'(?:Origem|Pickup|Pickup:|Pickup )[:\s-]*(.+)', text)
+            if not pickup_match:
+                pickup_match = re.search(r'((?:Rua|Av(?:enida)?|Avenida|RUA|AVENIDA)[^\n,]+)', text)
+            pickup = pickup_match.group(1).strip() if pickup_match else ''
+
+            # Dropoff: procurar 'Destino' ou 'Delp' etc.
+            drop_match = re.search(r'(?:Destino|Dropoff|Destino:)[:\s-]*(.+)', text)
+            if not drop_match:
+                drop_match = re.search(r'(Delp Engenharia[^\n]+|Aeroporto[^\n]+)', text)
+            dropoff = drop_match.group(1).strip() if drop_match else ''
+
+            # Horário: data aproximada
+            date_match = re.search(r'(\d{2}/\d{2}/\d{2,4})', text)
+            time_match = re.search(r'(\d{1,2}:\d{2})', text)
+            pickup_time = None
+            if date_match and time_match:
+                # tenta formar ISO
+                try:
+                    dt = parser.parse(f"{date_match.group(1)} {time_match.group(1)}")
+                    pickup_time = self._normalize_datetime(dt.isoformat())
+                except Exception:
+                    pickup_time = None
+
+            result = {
+                'passenger_name': name or 'Multiple passengers',
+                'phone': phone or '',
+                'pickup_address': pickup or '',
+                'dropoff_address': dropoff or '',
+                'pickup_time': pickup_time or '',
+                'notes': 'Parsed by fallback regex',
+                'passengers': [],
+                'has_return': False,
+                'return_time': None,
+                'arrival_time': None
+            }
+            # validação mínima
+            if not result['passenger_name'] or not result['pickup_address']:
+                return None
+            return result
+        except Exception as e:
+            logger.error(f"Fallback parse error: {e}")
+            return None
