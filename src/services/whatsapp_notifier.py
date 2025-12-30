@@ -21,6 +21,7 @@ class WhatsAppNotifier:
         api_url: str,
         api_key: str,
         instance_name: str,
+        auth_header_name: str = 'apikey',
         timeout: int = 60
     ):
         """
@@ -35,13 +36,25 @@ class WhatsAppNotifier:
         self.api_url = api_url.rstrip('/')
         self.api_key = api_key
         self.instance_name = instance_name
+        self.auth_header_name = auth_header_name
         self.timeout = timeout
         
-        # Headers padrão para todas as requisições
+        # Headers padrão para todas as requisições.
+        # O nome do header de autenticação é configurável porque
+        # versões diferentes da Evolution usam chaves distintas
+        # (ex: 'apikey' ou 'authentication_api_key').
         self.headers = {
-            'apikey': api_key,
             'Content-Type': 'application/json'
         }
+
+        # Define o header principal de autenticação conforme informado.
+        # Também mantém 'apikey' presente para compatibilidade reversa
+        # caso a API aceite ambos.
+        if self.auth_header_name:
+            self.headers[self.auth_header_name] = api_key
+        if self.auth_header_name.lower() != 'apikey':
+            # incluir 'apikey' como fallback compatível
+            self.headers['apikey'] = api_key
         
         logger.info(f"WhatsApp notifier initialized for instance {instance_name}")
     

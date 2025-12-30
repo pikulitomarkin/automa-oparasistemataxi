@@ -63,9 +63,10 @@ MINASTAXI_RETRY_ATTEMPTS=3
 
 ## 📱 **WHATSAPP (Evolution API)**
 ```
-EVOLUTION_API_URL=https://evolution-api-production-d234.up.railway.app/
+EVOLUTION_API_URL=https://evolution-api-production-98d2.up.railway.app
 EVOLUTION_API_KEY=minas2025taxi2026automacao
-EVOLUTION_INSTANCE_NAME=taxiautomacao
+EVOLUTION_AUTH_HEADER_NAME=AUTHENTICATION_API_KEY
+EVOLUTION_INSTANCE_NAME=instanciateste
 ENABLE_WHATSAPP_NOTIFICATIONS=true
 ```
 
@@ -137,9 +138,9 @@ MINASTAXI_AUTH_HEADER=Basic Original.#2024
 MINASTAXI_TIMEOUT=30
 MINASTAXI_RETRY_ATTEMPTS=3
 
-EVOLUTION_API_URL=https://evolution-api-production-d234.up.railway.app/
+EVOLUTION_API_URL=https://evolution-api-production-0290.up.railway.app/
 EVOLUTION_API_KEY=minas2025taxi2026automacao
-EVOLUTION_INSTANCE_NAME=taxiautomacao
+EVOLUTION_INSTANCE_NAME=minastaxi2025
 ENABLE_WHATSAPP_NOTIFICATIONS=true
 
 GOOGLE_MAPS_API_KEY=your-google-maps-api-key-here
@@ -252,7 +253,7 @@ Após o deploy, você terá:
 
 ### Erro no WhatsApp:
 - Verificar se Evolution API está rodando
-- Testar URL: `https://evolution-api-production-d234.up.railway.app/`
+- Testar URL: `https://evolution-api-production-0290.up.railway.app/`
 - Confirmar que instância está conectada (QR Code escaneado)
 
 ### Erro no OpenAI:

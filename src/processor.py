@@ -91,6 +91,7 @@ class TaxiOrderProcessor:
                 api_url=os.getenv('EVOLUTION_API_URL', ''),
                 api_key=os.getenv('EVOLUTION_API_KEY', ''),
                 instance_name=os.getenv('EVOLUTION_INSTANCE_NAME', 'taxi-bot'),
+                auth_header_name=os.getenv('EVOLUTION_AUTH_HEADER_NAME', 'apikey'),
                 timeout=int(os.getenv('MINASTAXI_TIMEOUT', 30))
             )
             logger.info("WhatsApp notifications enabled")
