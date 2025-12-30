@@ -425,7 +425,7 @@ def main():
         
         if orders_with_coords:
             m = create_map(orders_with_coords)
-                st_folium(m, width=1200, height=600)
+            st_folium(m, width=1200, height=600)
         else:
             st.info("🗺️ Nenhum pedido com coordenadas disponível")
     
