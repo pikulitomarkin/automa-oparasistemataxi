@@ -1,0 +1,22 @@
+﻿
+
+IsMutuallyAuthenticated : False
+Cookies                 : {}
+Headers                 : {Access-Control-Allow-Credentials, Vary, Content-Length, 
+                          Content-Type...}
+SupportsHeaders         : True
+ContentLength           : 79
+ContentEncoding         : 
+ContentType             : application/json; charset=utf-8
+CharacterSet            : utf-8
+Server                  : 
+LastModified            : 29/12/2025 23:23:28
+StatusCode              : NotFound
+StatusDescription       : Not Found
+ProtocolVersion         : 1.1
+ResponseUri             : https://evolution-api-production-1a45.up.railway.app/send
+Method                  : POST
+IsFromCache             : False
+
+
+

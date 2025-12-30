@@ -1,0 +1,9 @@
+﻿{
+    "status":  200,
+    "message":  "Welcome to the Evolution API, it is working!",
+    "version":  "2.3.7",
+    "clientName":  "evolution_exchange",
+    "manager":  "http://evolution-api-production-d234.up.railway.app/manager",
+    "documentation":  "https://doc.evolution-api.com",
+    "whatsappWebVersion":  "2.3000.1031516693"
+}

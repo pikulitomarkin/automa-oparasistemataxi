@@ -147,6 +147,36 @@ class MinasTaxiClient:
         short_uuid = str(uuid.uuid4())[:8].upper()
         return f"{timestamp}{short_uuid}"
     
+    def _remove_country_code(self, phone: str) -> str:
+        """
+        Remove DDI (55) do telefone brasileiro para envio ao MinasTaxi.
+        
+        MinasTaxi espera apenas DDD + número (ex: 31999999926).
+        WhatsApp precisa do formato completo com DDI (ex: 5531999999926).
+        
+        Args:
+            phone: Telefone com ou sem DDI.
+            
+        Returns:
+            Telefone sem DDI (apenas DDD + número).
+            
+        Examples:
+            "5531999999926" -> "31999999926"
+            "31999999926" -> "31999999926"
+            "+5531999999926" -> "31999999926"
+        """
+        if not phone:
+            return ""
+        
+        # Remove todos os caracteres não numéricos
+        digits_only = ''.join(filter(str.isdigit, phone))
+        
+        # Se começa com 55 e tem 12-13 dígitos, remove o 55
+        if digits_only.startswith('55') and len(digits_only) in [12, 13]:
+            return digits_only[2:]  # Remove os 2 primeiros dígitos (55)
+        
+        return digits_only
+    
     @retry(
         exceptions=requests.exceptions.RequestException,
         tries=3,
@@ -189,7 +219,7 @@ class MinasTaxiClient:
                     "id": idx,
                     "sequence": idx,
                     "name": passenger.get('name', order.passenger_name),
-                    "phone": passenger.get('phone', order.phone),
+                    "phone": self._remove_country_code(passenger.get('phone', order.phone)),
                     "pickup": {
                         "address": passenger.get('address', order.pickup_address),
                         "city": self._extract_city(passenger.get('address', order.pickup_address)),
@@ -205,7 +235,7 @@ class MinasTaxiClient:
                 "id": 1,
                 "sequence": 1,
                 "name": order.passenger_name,
-                "phone": order.phone,
+                "phone": self._remove_country_code(order.phone),
                 "pickup": {
                     "address": order.pickup_address,
                     "city": self._extract_city(order.pickup_address),
@@ -228,7 +258,7 @@ class MinasTaxiClient:
             "suitcases_no": 0,
             "passenger_note": order.raw_email_body or "",
             "passenger_name": order.passenger_name,
-            "passenger_phone_number": order.phone or (users[0]['phone'] if users else ""),
+            "passenger_phone_number": self._remove_country_code(order.phone or (users[0]['phone'] if users else "")),
             "payment_type": "ONLINE_PAYMENT",  # Padrão
             "users": users
         }

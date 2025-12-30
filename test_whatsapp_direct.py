@@ -2,13 +2,13 @@
 import requests
 import json
 
-url = "https://evolution-api-production-d234.up.railway.app/message/sendText/taxiautomacao"
+url = "https://evolution-api-production-0290.up.railway.app/message/sendText/minastaxi2025"
 headers = {
     "apikey": "minas2025taxi2026automacao",
     "Content-Type": "application/json"
 }
 payload = {
-    "number": "5542988463898",
+    "number": "5531999999926",
     "text": "🚖 Teste do sistema de táxi!\n\nSe você recebeu esta mensagem, o WhatsApp está FUNCIONANDO! ✅"
 }
 
@@ -17,7 +17,8 @@ print(f"URL: {url}")
 print(f"Payload: {json.dumps(payload, indent=2)}")
 
 try:
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    print("\n⏳ Aguardando resposta (pode demorar na primeira vez)...")
+    response = requests.post(url, headers=headers, json=payload, timeout=30)
     print(f"\nStatus Code: {response.status_code}")
     print(f"Response: {response.text}")
     
