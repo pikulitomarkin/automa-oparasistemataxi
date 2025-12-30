@@ -5,7 +5,7 @@ Tema: Liquid iPhone - Premium UI/UX
 import streamlit as st
 import pandas as pd
 import folium
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
@@ -265,7 +265,7 @@ def render_header():
     
     with col3:
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-        refresh_btn = st.button("🔄 Atualizar Dados", type="primary", use_container_width=True)
+        refresh_btn = st.button("🔄 Atualizar Dados", type="primary", width='stretch')
     
     with col4:
         st.markdown("""
@@ -386,7 +386,7 @@ def main():
                     plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(color='white', size=14)
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
             else:
                 st.info("📭 Nenhum pedido encontrado")
         
@@ -425,7 +425,7 @@ def main():
         
         if orders_with_coords:
             m = create_map(orders_with_coords)
-            folium_static(m, width=1200, height=600)
+                st_folium(m, width=1200, height=600)
         else:
             st.info("🗺️ Nenhum pedido com coordenadas disponível")
     
@@ -453,7 +453,7 @@ def main():
             if status_filter:
                 df = df[df['Status'].isin(status_filter)]
             
-            st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width='stretch', hide_index=True)
             
             # Botão de export
             csv = df.to_csv(index=False).encode('utf-8')
