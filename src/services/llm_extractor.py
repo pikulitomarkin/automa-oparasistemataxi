@@ -1,3 +1,4 @@
+import re
 """
 LLM-based data extraction service using OpenAI.
 """
