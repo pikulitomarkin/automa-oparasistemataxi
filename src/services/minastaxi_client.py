@@ -276,11 +276,11 @@ class MinasTaxiClient:
             # Trata resposta
             if response.status_code == 200:
                 data = response.json()
-                
+
                 if data.get('accepted_and_looking_for_driver'):
                     ride_id = data.get('ride_id')
                     logger.info(f"Order dispatched successfully. Ride ID: {ride_id}")
-                    
+
                     return {
                         'success': True,
                         'order_id': ride_id,
@@ -291,17 +291,35 @@ class MinasTaxiClient:
                     }
                 else:
                     logger.error("Order was not accepted by MinasTaxi")
+                    # Log completo para investigação
+                    try:
+                        logger.debug(f"Response headers: {response.headers}")
+                        logger.debug(f"Response body: {response.text}")
+                    except Exception:
+                        pass
                     raise MinasTaxiAPIError("Order not accepted")
-                    
+
             elif response.status_code == 500:
                 # Internal error
-                error_data = response.json() if response.text else {}
-                error_msg = error_data.get('error', 'Internal server error')
+                try:
+                    error_data = response.json() if response.text else {}
+                    error_msg = error_data.get('error', 'Internal server error')
+                except Exception:
+                    error_msg = response.text or 'Internal server error'
+
                 logger.error(f"MinasTaxi API error: {error_msg}")
+                logger.debug(f"Response headers: {response.headers}")
+                logger.debug(f"Response body: {response.text}")
                 raise MinasTaxiAPIError(f"API error: {error_msg}")
-                
+
             else:
+                # Log detalhado para debug de códigos como 403
                 logger.error(f"Unexpected response code: {response.status_code}")
+                try:
+                    logger.error(f"Response headers: {response.headers}")
+                    logger.error(f"Response body: {response.text}")
+                except Exception:
+                    pass
                 raise MinasTaxiAPIError(f"Unexpected response: {response.status_code}")
                 
         except requests.exceptions.Timeout:
