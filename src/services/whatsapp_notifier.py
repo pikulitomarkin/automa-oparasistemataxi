@@ -21,7 +21,7 @@ class WhatsAppNotifier:
         api_url: str,
         api_key: str,
         instance_name: str,
-        timeout: int = 30
+        timeout: int = 60
     ):
         """
         Inicializa o notificador WhatsApp.
@@ -137,7 +137,7 @@ class WhatsAppNotifier:
     
     @retry(
         exceptions=requests.exceptions.RequestException,
-        tries=3,
+        tries=5,
         delay=2,
         backoff=2,
         logger=logger
@@ -206,6 +206,9 @@ class WhatsAppNotifier:
                 
         except requests.exceptions.Timeout:
             logger.error(f"Timeout sending WhatsApp to {name}")
+            raise
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error sending WhatsApp to {name}: {e}")
             raise
         except requests.exceptions.RequestException as e:
             logger.error(f"Error sending WhatsApp to {name}: {e}")
