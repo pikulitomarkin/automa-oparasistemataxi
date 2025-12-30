@@ -386,7 +386,7 @@ def main():
                     plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(color='white', size=14)
                 )
-                    st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("📭 Nenhum pedido encontrado")
         
