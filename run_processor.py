@@ -22,9 +22,14 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(os.getenv('LOG_FILE', 'data/taxi_automation.log')),
-        logging.StreamHandler()
+        logging.StreamHandler(sys.stdout)  # Explicitamente usa stdout
     ]
 )
+
+# Força unbuffered output para Railway ver logs em tempo real
+sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
+sys.stderr.reconfigure(line_buffering=True) if hasattr(sys.stderr, 'reconfigure') else None
+
 logger = logging.getLogger(__name__)
 
 def main_loop():

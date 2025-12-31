@@ -120,7 +120,10 @@ ENABLE_CLUSTERING=true
 ## 🌐 **RAILWAY ESPECÍFICO**
 ```
 PORT=8501
+PYTHONUNBUFFERED=1
 ```
+
+⚡ **`PYTHONUNBUFFERED=1`** força Python a não bufferizar logs, permitindo ver logs do processador em tempo real no Railway!
 
 ---
 
@@ -143,6 +146,7 @@ EMAIL_USER=virso2016@gmail.com
 EMAIL_PASSWORD=ubyb zngk utbv gvsq
 EMAIL_FOLDER=INBOX
 EMAIL_SUBJECT_FILTER=Novo Agendamento
+EMAIL_DAYS_BACK=7
 
 OPENAI_API_KEY=sua-chave-openai-aqui
 OPENAI_MODEL=gpt-4-turbo-preview
@@ -166,10 +170,12 @@ DATABASE_PATH=/data/taxi_orders.db
 LOG_LEVEL=INFO
 LOG_FILE=/data/taxi_automation.log
 
-PROCESS_INTERVAL_SECONDS=300
+PROCESSOR_INTERVAL_MINUTES=5
+EMAIL_DAYS_BACK=7
 ENABLE_CLUSTERING=true
 
 PORT=8501
+PYTHONUNBUFFERED=1
 ```
 
 4. **IMPORTANTE**: Substitua `sua-chave-openai-aqui` pela sua chave OpenAI real
