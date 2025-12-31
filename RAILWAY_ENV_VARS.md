@@ -93,11 +93,27 @@ LOG_FILE=/data/taxi_automation.log
 
 ---
 
-## ⚙️ **PROCESSAMENTO**
+## ⚙️ **PROCESSAMENTO (LOOP CONTÍNUO)**
 ```
-PROCESS_INTERVAL_SECONDS=300
+PROCESSOR_INTERVAL_MINUTES=5
+EMAIL_DAYS_BACK=7
 ENABLE_CLUSTERING=true
 ```
+
+**🔄 Configuração do Loop Contínuo:**
+- `PROCESSOR_INTERVAL_MINUTES`: Intervalo entre verificações de e-mail (padrão: 5 minutos) ⚡
+- `EMAIL_DAYS_BACK`: Quantos dias para trás buscar e-mails (padrão: 7 dias)
+- `ENABLE_CLUSTERING`: Habilita agrupamento de múltiplos passageiros
+
+**Valores Recomendados:**
+| Cenário | `PROCESSOR_INTERVAL_MINUTES` | `EMAIL_DAYS_BACK` |
+|---------|------------------------------|-------------------|
+| Produção (padrão) ⚡ | `5` | `7` |
+| Alta demanda | `5` | `5` |
+| Baixa demanda | `15` | `7` |
+| Desenvolvimento | `3` | `3` |
+
+📖 **Documentação completa**: Ver `CONTINUOUS_PROCESSOR.md`
 
 ---
 

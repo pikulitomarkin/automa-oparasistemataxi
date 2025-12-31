@@ -26,12 +26,17 @@ Este sistema automatiza o fluxo completo de processamento de pedidos de táxi:
 
 ## ✨ Funcionalidades
 
-### FASE 1: Ingestão de Pedidos
-- ✅ Monitoramento automático de caixa de entrada via IMAP
+## ✨ Funcionalidades
+
+### FASE 1: Ingestão de Pedidos (Modo Contínuo)
+- ✅ **Monitoramento automático contínuo** com intervalo configurável
+- ✅ Loop infinito que verifica novos e-mails periodicamente
+- ✅ Intervalo padrão: 15 minutos (configurável)
 - ✅ Filtro por assunto "Novo Agendamento"
 - ✅ Suporte a Gmail, Outlook e outros provedores IMAP
 - ✅ Processamento de e-mails não lidos
 - ✅ Prevenção de duplicatas
+- ✅ Tratamento robusto de erros (não para em falhas)
 
 ### FASE 2: Extração e Tratamento (NLP/LLM)
 - ✅ Extração automática via OpenAI GPT-4
@@ -168,7 +173,28 @@ EMAIL_PORT=993
 EMAIL_USER=seu-email@gmail.com
 EMAIL_PASSWORD=sua-app-password-aqui
 EMAIL_SUBJECT_FILTER=Novo Agendamento
+EMAIL_DAYS_BACK=7
 ```
+
+### 2. Processador Contínuo (NOVO!)
+
+Configure o intervalo de verificação automática:
+
+```env
+# Intervalo entre verificações (em minutos)
+PROCESSOR_INTERVAL_MINUTES=5
+
+# Quantos dias para trás buscar e-mails
+EMAIL_DAYS_BACK=7
+```
+
+**Valores Recomendados**:
+- Produção: `5` minutos (padrão) ⚡
+- Desenvolvimento: `3` minutos (testes rápidos)
+- Alta demanda: `5` minutos
+- Baixa demanda: `15` minutos
+
+**📖 Veja documentação completa**: [CONTINUOUS_PROCESSOR.md](CONTINUOUS_PROCESSOR.md)
 
 ### 2. OpenAI API
 
@@ -208,41 +234,65 @@ GOOGLE_MAPS_API_KEY=your-google-key-here
 
 ## 📖 Uso
 
-### Execução do Processador Principal
+### Modo Contínuo (Recomendado para Produção)
 
-Para processar novos pedidos manualmente:
+O sistema agora roda em **modo contínuo**, verificando e-mails automaticamente:
+
+```bash
+# Inicia o processador contínuo
+python run_processor.py
+```
+
+O sistema irá:
+1. ✅ Conectar ao e-mail e outros serviços
+2. 🔄 Entrar em loop infinito
+3. 📧 A cada X minutos (configurável), buscar novos e-mails
+4. 🤖 Processar pedidos automaticamente
+5. 💾 Salvar no banco de dados
+6. ⏰ Aguardar intervalo e repetir
+
+**Para parar**: Pressione `Ctrl+C`
+
+**Logs em tempo real**:
+```bash
+# Ver logs do processador
+tail -f data/taxi_automation.log
+
+# Windows PowerShell
+Get-Content data\taxi_automation.log -Wait -Tail 20
+```
+
+### Verificar Status do Sistema
+
+Antes de executar, verifique se tudo está configurado:
+
+```bash
+python check_processor_status.py
+```
+
+Isso verifica:
+- ✓ Variáveis de ambiente
+- ✓ Conexão com e-mail
+- ✓ OpenAI API key
+- ✓ Banco de dados
+- ✓ Arquivos de log
+
+### Execução Manual (Uma Vez)
+
+Para processar apenas uma vez (útil para testes):
 
 ```bash
 python -m src.processor
 ```
 
-Isso irá:
-1. Conectar ao e-mail
-2. Buscar e-mails com "Novo Agendamento"
-3. Extrair dados com IA
-4. Geocodificar endereços
-5. Enviar para MinasTaxi API
-6. Salvar no banco de dados
+### Deploy em Produção (Railway/Cloud)
 
-### Execução Agendada (Produção)
+O sistema automaticamente inicia em modo contínuo no deploy:
 
-**Windows (Task Scheduler)**:
-```powershell
-# Crie um arquivo run_processor.bat:
-cd D:\taxi
-venv\Scripts\activate
-python -m src.processor
-```
-
-Agende no Task Scheduler para rodar a cada 5 minutos.
-
-**Linux (Cron)**:
 ```bash
-# Edite crontab
-crontab -e
-
-# Adicione (executa a cada 5 minutos):
-*/5 * * * * cd /path/to/taxi && /path/to/venv/bin/python -m src.processor
+# O script start.sh faz:
+python run_processor.py &  # Background contínuo
+streamlit run app_liquid.py  # Dashboard
 ```
 
 ## 📊 Dashboard
