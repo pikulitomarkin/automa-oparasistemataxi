@@ -252,6 +252,17 @@ class OrderReprocessor:
         return stats
 
 
+    def reprocess_all(self):
+        """
+        Método simplificado para retornar apenas sucesso/falha (para dashboard).
+        
+        Returns:
+            Tuple[int, int]: (success_count, fail_count)
+        """
+        stats = self.reprocess_all_failed()
+        return stats['success'], stats['failed']
+
+
 def main():
     """
     Função principal para executar reprocessamento.

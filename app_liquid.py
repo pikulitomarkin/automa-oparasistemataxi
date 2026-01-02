@@ -363,7 +363,7 @@ def main():
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Tabs de navegação
-    tab1, tab2, tab3 = st.tabs(["📊 Visão Geral", "🗺️ Mapa", "📋 Detalhes"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Visão Geral", "🗺️ Mapa", "📋 Detalhes", "⚙️ Admin"])
     
     with tab1:
         st.markdown("### 📈 Distribuição de Status")
@@ -465,6 +465,80 @@ def main():
             )
         else:
             st.info("📭 Nenhum pedido encontrado")
+    
+    with tab4:
+        st.markdown("### ⚙️ Painel de Administração")
+        
+        st.markdown("""
+            <div style='background: rgba(255, 165, 0, 0.1); backdrop-filter: blur(10px); 
+                        border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem;
+                        border: 1px solid rgba(255, 165, 0, 0.3);'>
+                <h4 style='color: #FFA500; margin: 0 0 0.5rem 0;'>⚠️ Reprocessamento de Pedidos</h4>
+                <p style='color: rgba(255,255,255,0.8); margin: 0;'>
+                    Esta ferramenta busca todos os pedidos com status <b>FAILED</b> e tenta 
+                    reenviá-los para a API MinasTaxi.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Mostrar pedidos falhados
+        failed_orders = [o for o in db.get_all_orders() if o.status == OrderStatus.FAILED]
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.metric("❌ Pedidos Falhados", len(failed_orders))
+            
+            if failed_orders:
+                st.markdown("**Últimas falhas:**")
+                for order in failed_orders[:5]:
+                    st.markdown(f"""
+                        <div style='background: rgba(255,255,255,0.05); padding: 0.8rem; 
+                                    border-radius: 12px; margin-bottom: 0.5rem;'>
+                            <b>ID {order.id}:</b> {order.passenger_name}<br>
+                            <small style='color: rgba(255,255,255,0.6);'>
+                                Erro: {order.error_message[:80] if order.error_message else 'N/A'}
+                            </small>
+                        </div>
+                    """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            if st.button("🔄 Reprocessar Todos", type="primary", disabled=len(failed_orders)==0):
+                with st.spinner("Reprocessando pedidos..."):
+                    try:
+                        from reprocess_failed_orders import OrderReprocessor
+                        
+                        reprocessor = OrderReprocessor()
+                        success_count, fail_count = reprocessor.reprocess_all()
+                        
+                        st.success(f"✅ Reprocessamento concluído!\n\n"
+                                 f"- Sucesso: {success_count}\n"
+                                 f"- Falhas: {fail_count}")
+                        
+                        # Aguardar 2 segundos e recarregar
+                        import time
+                        time.sleep(2)
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Erro ao reprocessar: {str(e)}")
+        
+        # Seção de logs
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("### 📄 Logs do Sistema")
+        
+        log_file = os.getenv('LOG_FILE', '/data/taxi_automation.log')
+        
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                last_lines = lines[-50:] if len(lines) > 50 else lines
+            
+            st.code('\n'.join(last_lines), language='log')
+        else:
+            st.warning("📭 Arquivo de log não encontrado")
 
 
 if __name__ == "__main__":
