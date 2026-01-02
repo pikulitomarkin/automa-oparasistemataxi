@@ -71,56 +71,15 @@ class OrderReprocessor:
         logger.info("Buscando orders falhadas no banco...")
         
         try:
-            # Query direta no banco
-            import sqlite3
-            db_path = os.getenv('DATABASE_PATH', 'data/taxi_orders.db')
-            
-            with sqlite3.connect(db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                
-                # Busca orders com status FAILED
-                cursor.execute("""
-                    SELECT * FROM orders 
-                    WHERE status = ? 
-                    ORDER BY created_at DESC
-                """, (OrderStatus.FAILED.value,))
-                
-                rows = cursor.fetchall()
-                
-                orders = []
-                for row in rows:
-                    # Converte row para Order object
-                    order = Order(
-                        email_id=row['email_id'],
-                        passenger_name=row['passenger_name'],
-                        phone=row['phone'],
-                        pickup_address=row['pickup_address'],
-                        pickup_lat=row['pickup_lat'],
-                        pickup_lng=row['pickup_lng'],
-                        dropoff_address=row['dropoff_address'],
-                        dropoff_lat=row['dropoff_lat'],
-                        dropoff_lng=row['dropoff_lng'],
-                        pickup_time=datetime.fromisoformat(row['pickup_time']) if row['pickup_time'] else None,
-                        raw_email_body=row['raw_email_body'],
-                        status=OrderStatus(row['status'])
-                    )
-                    order.id = row['id']
-                    order.error_message = row['error_message']
-                    order.created_at = datetime.fromisoformat(row['created_at'])
-                    
-                    # Decodifica passengers JSON se existir
-                    if row['passengers_data']:
-                        import json
-                        order.passengers = json.loads(row['passengers_data'])
-                    
-                    orders.append(order)
-                
-                logger.info(f"Encontradas {len(orders)} orders falhadas")
-                return orders
+            # Usa método do DatabaseManager
+            orders = self.db.get_orders_by_status(OrderStatus.FAILED)
+            logger.info(f"Encontradas {len(orders)} orders falhadas")
+            return orders
                 
         except Exception as e:
             logger.error(f"Erro ao buscar orders falhadas: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def reprocess_order(self, order: Order):
