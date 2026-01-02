@@ -275,6 +275,22 @@ class DatabaseManager:
             
             return stats
     
+    def delete_order(self, order_id: int) -> bool:
+        """
+        Deleta um pedido do banco de dados.
+        
+        Args:
+            order_id: ID do pedido a deletar.
+            
+        Returns:
+            True se deletado com sucesso.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM orders WHERE id = ?', (order_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+    
     def _row_to_order(self, row: sqlite3.Row) -> Order:
         """Converte uma linha do banco em objeto Order."""
         return Order(
