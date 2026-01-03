@@ -1,6 +1,7 @@
 """
 Geocoding service for address to coordinates conversion.
 """
+import re
 import logging
 from typing import Optional, Tuple
 from geopy.geocoders import Nominatim, GoogleV3
