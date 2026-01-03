@@ -246,6 +246,11 @@ class MinasTaxiClient:
                 }
             })
         
+        # Determina telefone principal (fallback para primeiro passageiro se necessário)
+        main_phone = order.phone or ""
+        if not main_phone and users:
+            main_phone = users[0].get('phone', "")
+        
         # Monta payload no formato Original Software
         payload = {
             "partner": "1",  # Fixo como "1" conforme padrão
@@ -258,7 +263,7 @@ class MinasTaxiClient:
             "suitcases_no": 0,
             "passenger_note": order.raw_email_body or "",
             "passenger_name": order.passenger_name,
-            "passenger_phone_number": self._remove_country_code(order.phone or (users[0]['phone'] if users else "")),
+            "passenger_phone_number": self._remove_country_code(main_phone) if main_phone else "",
             "payment_type": "ONLINE_PAYMENT",  # Padrão
             "users": users
         }
@@ -424,12 +429,16 @@ class MinasTaxiClient:
         required_fields = [
             'partner', 'user', 'password', 'request_id', 
             'pickup_time', 'category', 'passenger_name', 
-            'passenger_phone_number', 'users'
+            'users'  # Removido passenger_phone_number pois pode ser vazio (múltiplos passageiros)
         ]
         
         for field in required_fields:
             if field not in payload or not payload[field]:
                 raise ValueError(f"Missing required field: {field}")
+        
+        # Valida passenger_phone_number - pode ser vazio mas deve existir
+        if 'passenger_phone_number' not in payload:
+            raise ValueError("Missing required field: passenger_phone_number (can be empty)")
         
         # Valida users array
         if not isinstance(payload['users'], list) or len(payload['users']) == 0:

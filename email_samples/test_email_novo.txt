@@ -1,0 +1,18 @@
+Assunto: PROGRAMAÇÃO DE TAXI amanhã 14:30H
+
+Prezados, boa tarde!
+
+Gentileza programar um TAXI amanhã 04/01/2026 14:30H
+
+CSN DESTINO BH
+
+CC:20095
+
+┌────────────────────────────┬────────┬──────────────┬──────┬──────┐
+│ CARLOS ALBERTO MENDES      │ MIN8234│ (31)987654321│ CSN  │  BH  │
+│ PATRICIA RODRIGUES SANTOS  │ MIN8235│ (31)991234567│      │      │
+└────────────────────────────┴────────┴──────────────┴──────┴──────┘
+
+Att,
+Setor de Transporte
+CSN Mineração
