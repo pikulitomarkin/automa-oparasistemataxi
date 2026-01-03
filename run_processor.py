@@ -43,10 +43,17 @@ def main_loop():
     # Dias para buscar e-mails
     days_back = int(os.getenv('EMAIL_DAYS_BACK', 7))
     
+    # Configuração de limpeza automática do banco
+    db_cleanup_days = int(os.getenv('DATABASE_CLEANUP_DAYS', 30))
+    db_cleanup_interval_hours = int(os.getenv('DATABASE_CLEANUP_INTERVAL_HOURS', 24))
+    db_cleanup_interval_seconds = db_cleanup_interval_hours * 3600
+    last_cleanup_time = 0  # Timestamp da última limpeza
+    
     logger.info("=" * 80)
     logger.info("CONTINUOUS TAXI ORDER PROCESSOR STARTED")
     logger.info(f"Checking for new emails every {interval_minutes} minutes")
     logger.info(f"Email search window: last {days_back} days")
+    logger.info(f"Database auto-cleanup: every {db_cleanup_interval_hours}h, keeping last {db_cleanup_days} days")
     logger.info("=" * 80)
     
     # Inicializa processador uma vez
@@ -75,6 +82,18 @@ def main_loop():
             # Estatísticas do banco
             db_stats = processor.get_statistics()
             logger.info(f"Database Statistics: {db_stats}")
+            
+            # Limpeza automática do banco de dados (se necessário)
+            current_time = time.time()
+            if current_time - last_cleanup_time >= db_cleanup_interval_seconds:
+                try:
+                    logger.info("Running scheduled database cleanup...")
+                    deleted_count = processor.db.cleanup_old_orders(days_to_keep=db_cleanup_days)
+                    if deleted_count > 0:
+                        logger.info(f"Database cleanup completed: {deleted_count} old orders removed")
+                    last_cleanup_time = current_time
+                except Exception as cleanup_error:
+                    logger.error(f"Database cleanup failed: {cleanup_error}")
             
             # Próxima execução
             next_run = datetime.now().timestamp() + interval_seconds

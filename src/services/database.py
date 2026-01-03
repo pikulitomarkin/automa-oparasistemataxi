@@ -291,6 +291,49 @@ class DatabaseManager:
             conn.commit()
             return cursor.rowcount > 0
     
+    def cleanup_old_orders(self, days_to_keep: int = 30) -> int:
+        """
+        Remove pedidos com mais de X dias do banco de dados para otimizar espaço.
+        Mantém apenas pedidos criados nos últimos {days_to_keep} dias.
+        
+        Args:
+            days_to_keep: Número de dias de histórico a manter (padrão: 30).
+            
+        Returns:
+            Número de pedidos deletados.
+        """
+        from datetime import timedelta
+        
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+        cutoff_str = cutoff_date.isoformat()
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Conta quantos serão deletados
+            cursor.execute(
+                'SELECT COUNT(*) FROM orders WHERE created_at < ?',
+                (cutoff_str,)
+            )
+            count = cursor.fetchone()[0]
+            
+            if count > 0:
+                # Deleta pedidos antigos
+                cursor.execute(
+                    'DELETE FROM orders WHERE created_at < ?',
+                    (cutoff_str,)
+                )
+                conn.commit()
+                
+                # Executa VACUUM para liberar espaço físico
+                cursor.execute('VACUUM')
+                
+                logger.info(f"Database cleanup: removed {count} orders older than {days_to_keep} days")
+            else:
+                logger.info(f"Database cleanup: no orders older than {days_to_keep} days found")
+            
+            return count
+    
     def _row_to_order(self, row: sqlite3.Row) -> Order:
         """Converte uma linha do banco em objeto Order."""
         return Order(
