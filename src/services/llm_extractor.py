@@ -104,7 +104,29 @@ REGRAS CRÍTICAS:
    - Extrair horário de retorno em return_time (ISO 8601)
    - Sistema criará 2 viagens: IDA e VOLTA
 
-8. **FORMATO DE SAÍDA**: Retorne APENAS JSON válido, sem texto adicional ou markdown
+8. **FORMATO DE SAÍDA**: 
+   - Retorne APENAS JSON válido, sem texto adicional, markdown ou comentários
+   - Use aspas duplas (")
+   - NÃO inclua vírgulas pendentes no final de arrays ou objetos
+   - NÃO adicione comentários dentro do JSON
+   - Valide a estrutura antes de retornar
+   - Se um campo for null, use null (não string vazia para campos nullable)
+
+9. **EXEMPLO DE JSON VÁLIDO**:
+```json
+{{
+  "passenger_name": "João Silva",
+  "phone": "31988888888",
+  "pickup_address": "CSN Mineração, Congonhas, MG",
+  "dropoff_address": "Belo Horizonte, MG",
+  "pickup_time": "2026-01-04T14:00:00-03:00",
+  "notes": "CC: 20086",
+  "passengers": [],
+  "has_return": false,
+  "return_time": null,
+  "arrival_time": null
+}}
+```
 
 Data/hora de referência: {reference_datetime}"""
     

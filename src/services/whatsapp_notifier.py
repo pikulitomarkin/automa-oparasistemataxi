@@ -148,6 +148,39 @@ class WhatsAppNotifier:
         
         return payload
     
+    def _validate_phone_exists(self, phone: str) -> bool:
+        """
+        Valida se o número de telefone existe no WhatsApp antes de enviar.
+        
+        Args:
+            phone: Telefone normalizado (formato: 5531999999999)
+            
+        Returns:
+            True se o número existe no WhatsApp, False caso contrário.
+        """
+        endpoint = f"{self.api_url}/chat/whatsappNumbers/{self.instance_name}"
+        
+        try:
+            response = requests.post(
+                endpoint,
+                json={"numbers": [phone]},
+                headers=self.headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Verifica se o número existe
+                if isinstance(data, list) and len(data) > 0:
+                    exists = data[0].get('exists', False)
+                    if not exists:
+                        logger.warning(f"Phone {phone} does not exist on WhatsApp")
+                    return exists
+            return False
+        except Exception as e:
+            logger.warning(f"Phone validation failed: {e}, assuming valid")
+            return True  # Em caso de erro na validação, assume válido para não bloquear
+    
     @retry(
         exceptions=requests.exceptions.RequestException,
         tries=5,
@@ -177,6 +210,19 @@ class WhatsAppNotifier:
         Raises:
             requests.exceptions.RequestException: Em caso de erro na API.
         """
+        # Valida se o telefone não está vazio
+        if not phone or phone.strip() == '':
+            logger.warning(f"Empty phone number for {name}, skipping WhatsApp")
+            return {'success': False, 'error': 'Empty phone number'}
+        
+        # Normaliza telefone
+        normalized_phone = self.normalize_phone(phone)
+        
+        # Valida se o número existe no WhatsApp
+        if not self._validate_phone_exists(normalized_phone):
+            logger.warning(f"Phone {phone} ({normalized_phone}) not found on WhatsApp, skipping")
+            return {'success': False, 'error': 'Phone not found on WhatsApp'}
+        
         # Gera mensagem baseada no status
         if status.lower() in ['sucesso', 'success', 'dispatched']:
             message = self.generate_success_message(name, destination)

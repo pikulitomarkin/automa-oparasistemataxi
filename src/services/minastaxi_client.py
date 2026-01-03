@@ -215,11 +215,20 @@ class MinasTaxiClient:
                 passenger_lat = passenger.get('lat', order.pickup_lat)
                 passenger_lng = passenger.get('lng', order.pickup_lng)
                 
+                # Obtém telefone do passageiro, senão usa telefone principal do order
+                passenger_phone = passenger.get('phone', '') or order.phone or ""
+                passenger_phone_clean = self._remove_country_code(passenger_phone) if passenger_phone else ""
+                
+                # Validação: MinasTaxi requer telefone não vazio
+                if not passenger_phone_clean:
+                    logger.warning(f"Passenger {passenger.get('name')} has no phone, using order phone as fallback")
+                    passenger_phone_clean = self._remove_country_code(order.phone) if order.phone else ""
+                
                 users.append({
                     "id": idx,
                     "sequence": idx,
                     "name": passenger.get('name', order.passenger_name),
-                    "phone": self._remove_country_code(passenger.get('phone', order.phone)),
+                    "phone": passenger_phone_clean,
                     "pickup": {
                         "address": passenger.get('address', order.pickup_address),
                         "city": self._extract_city(passenger.get('address', order.pickup_address)),
