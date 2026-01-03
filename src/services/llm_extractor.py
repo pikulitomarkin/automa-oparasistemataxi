@@ -1,7 +1,7 @@
-import re
 """
 LLM-based data extraction service using OpenAI.
 """
+import re
 import json
 import logging
 from typing import Dict, Optional
@@ -9,7 +9,6 @@ from datetime import datetime
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
 import pytz
-import re
 
 from openai import OpenAI
 
