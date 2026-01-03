@@ -7,6 +7,7 @@ import os
 import time
 import logging
 from datetime import datetime
+import pytz
 
 # Adiciona o diretório raiz ao path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,14 +17,29 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Timezone de Brasília
+BRAZIL_TZ = pytz.timezone('America/Sao_Paulo')
+
+# Configurador de timezone para logging
+class BrazilFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=BRAZIL_TZ)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+
 # Configuração de logging
+formatter = BrazilFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+file_handler = logging.FileHandler(os.getenv('LOG_FILE', 'data/taxi_automation.log'))
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(formatter)
+
 logging.basicConfig(
     level=os.getenv('LOG_LEVEL', 'INFO'),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.getenv('LOG_FILE', 'data/taxi_automation.log')),
-        logging.StreamHandler(sys.stdout)  # Explicitamente usa stdout
-    ]
+    handlers=[file_handler, stream_handler]
 )
 
 # Força unbuffered output para Railway ver logs em tempo real
@@ -71,7 +87,7 @@ def main_loop():
         
         try:
             logger.info(f"\n{'='*60}")
-            logger.info(f"PROCESSING CYCLE #{cycle_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"PROCESSING CYCLE #{cycle_count} - {datetime.now(BRAZIL_TZ).strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info(f"{'='*60}")
             
             # Processa novos pedidos
@@ -96,8 +112,8 @@ def main_loop():
                     logger.error(f"Database cleanup failed: {cleanup_error}")
             
             # Próxima execução
-            next_run = datetime.now().timestamp() + interval_seconds
-            next_run_str = datetime.fromtimestamp(next_run).strftime('%Y-%m-%d %H:%M:%S')
+            next_run = datetime.now(BRAZIL_TZ).timestamp() + interval_seconds
+            next_run_str = datetime.fromtimestamp(next_run, tz=BRAZIL_TZ).strftime('%Y-%m-%d %H:%M:%S')
             
             logger.info(f"\nCycle #{cycle_count} complete. Next check at {next_run_str}")
             logger.info(f"Sleeping for {interval_minutes} minutes...\n")
