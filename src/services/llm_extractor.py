@@ -109,13 +109,13 @@ REGRAS CRÍTICAS:
 
 Data/hora de referência: {reference_datetime}"""
     
-    def __init__(self, api_key: str, model: str = "gpt-4-turbo-preview"):
+    def __init__(self, api_key: str, model: str = "gpt-4o"):
         """
         Inicializa o extrator LLM.
         
         Args:
             api_key: Chave da API OpenAI.
-            model: Modelo a ser usado (default: gpt-4-turbo-preview).
+            model: Modelo a ser usado (default: gpt-4o).
         """
         self.client = OpenAI(api_key=api_key)
         self.model = model

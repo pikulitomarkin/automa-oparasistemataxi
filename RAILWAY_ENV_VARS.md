@@ -36,10 +36,11 @@ EMAIL_SUBJECT_FILTER=Novo Agendamento
 ## 🤖 **OPENAI API**
 ```
 OPENAI_API_KEY=sua-chave-openai-aqui
-OPENAI_MODEL=gpt-4-turbo-preview
+OPENAI_MODEL=gpt-4o
 ```
 
 ⚠️ **Substitua `sua-chave-openai-aqui` pela sua chave real da OpenAI**
+💡 **Modelo atual**: `gpt-4o` (mais recente e otimizado da OpenAI)
 
 ---
 
@@ -149,7 +150,7 @@ EMAIL_SUBJECT_FILTER=Novo Agendamento
 EMAIL_DAYS_BACK=7
 
 OPENAI_API_KEY=sua-chave-openai-aqui
-OPENAI_MODEL=gpt-4-turbo-preview
+OPENAI_MODEL=gpt-4o
 
 MINASTAXI_API_URL=https://vm2c.taxifone.com.br:11048
 MINASTAXI_USER_ID=02572696000156
