@@ -358,19 +358,20 @@ class MinasTaxiClient:
             "users": users
         }
         
-        # Adiciona centro de custo se disponível
-        if cost_center:
-            payload["cost_center"] = cost_center
-            logger.info(f"✅ Centro de custo: {cost_center}")
-        else:
-            logger.warning("⚠️ Centro de custo não encontrado")
-        
-        # Adiciona código de empresa se disponível (prioriza extraído do email)
+        # Adiciona centro de custo e código de empresa nos campos extras
+        # extra1 = Código da Empresa (aparece no campo "Código / Empresa")
+        # extra2 = Centro de Custo (aparece no campo "C.Custo")
         if company_code:
-            payload["company_code"] = company_code
-            logger.info(f"✅ Código da empresa: {company_code}")
+            payload["extra1"] = company_code
+            logger.info(f"✅ Código da empresa (extra1): {company_code}")
         else:
             logger.warning("⚠️ Código da empresa não encontrado")
+        
+        if cost_center:
+            payload["extra2"] = cost_center
+            logger.info(f"✅ Centro de custo (extra2): {cost_center}")
+        else:
+            logger.warning("⚠️ Centro de custo não encontrado")
         
         # Adiciona destino se fornecido
         if order.dropoff_address and order.dropoff_lat and order.dropoff_lng:
