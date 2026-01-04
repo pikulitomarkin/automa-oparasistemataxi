@@ -270,6 +270,49 @@ class DatabaseManager:
                 return self._row_to_order(row)
             return None
     
+    def check_duplicate_order(self, passenger_name: str, pickup_address: str, 
+                             pickup_time: datetime, tolerance_minutes: int = 30) -> bool:
+        """
+        Verifica se já existe um pedido similar (mesmo passageiro, endereço) 
+        no mesmo horário (com tolerância).
+        
+        Args:
+            passenger_name: Nome do passageiro.
+            pickup_address: Endereço de coleta.
+            pickup_time: Horário de coleta.
+            tolerance_minutes: Tolerância em minutos para considerar duplicado.
+            
+        Returns:
+            True se existe pedido duplicado, False caso contrário.
+        """
+        if not passenger_name or not pickup_address or not pickup_time:
+            return False
+        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Calcula janela de tempo
+                from datetime import timedelta
+                time_min = (pickup_time - timedelta(minutes=tolerance_minutes)).isoformat()
+                time_max = (pickup_time + timedelta(minutes=tolerance_minutes)).isoformat()
+                
+                cursor.execute("""
+                    SELECT COUNT(*) FROM orders 
+                    WHERE LOWER(passenger_name) = LOWER(?)
+                    AND LOWER(pickup_address) = LOWER(?)
+                    AND pickup_time >= ?
+                    AND pickup_time <= ?
+                    AND status != 'failed'
+                """, (passenger_name, pickup_address, time_min, time_max))
+                
+                count = cursor.fetchone()[0]
+                return count > 0
+                
+        except Exception as e:
+            logger.error(f"Error checking duplicate order: {e}")
+            return False
+    
     def get_orders_by_status(self, status: OrderStatus) -> List[Order]:
         """
         Busca todos os pedidos com determinado status.

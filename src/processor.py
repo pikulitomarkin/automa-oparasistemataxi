@@ -170,7 +170,7 @@ class TaxiOrderProcessor:
         """
         logger.info(f"Processing email UID={email.uid} from {email.from_}")
         
-        # Verifica se já foi processado
+        # Verifica se já foi processado (mesmo email UID)
         existing_order = self.db.get_order_by_email_id(email.uid)
         if existing_order:
             logger.info(f"Email {email.uid} already processed, skipping")
@@ -213,6 +213,26 @@ class TaxiOrderProcessor:
                     order.pickup_time = parser.parse(extracted_data['pickup_time'])
                 except:
                     logger.warning("Failed to parse pickup_time")
+            
+            # Verifica duplicata por conteúdo (mesmo passageiro/endereço/horário)
+            if order.pickup_time:
+                is_duplicate = self.db.check_duplicate_order(
+                    passenger_name=order.passenger_name,
+                    pickup_address=order.pickup_address,
+                    pickup_time=order.pickup_time,
+                    tolerance_minutes=30  # Considera duplicado se horário difere em menos de 30min
+                )
+                
+                if is_duplicate:
+                    logger.warning(
+                        f"Duplicate order detected: {order.passenger_name} at "
+                        f"{order.pickup_address} around {order.pickup_time.strftime('%Y-%m-%d %H:%M')}"
+                    )
+                    order.status = OrderStatus.MANUAL_REVIEW
+                    order.error_message = "Possível pedido duplicado (mesmo passageiro, endereço e horário similar)"
+                    order.id = self.db.create_order(order)
+                    logger.info(f"Order {order.id} marked for manual review - possible duplicate")
+                    return order
             
             # Parse return_time se houver
             if extracted_data.get('return_time'):
