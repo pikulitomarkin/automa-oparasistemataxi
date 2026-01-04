@@ -335,23 +335,20 @@ class TaxiOrderProcessor:
                     # Lista de passageiros para notificar
                     passengers_to_notify = []
                     
-                    # Adiciona passageiro principal (se houver telefone)
-                    if order.phone:
+                    # Se houver múltiplos passageiros, usa APENAS a lista individualizada
+                    if order.passengers:
+                        for passenger in order.passengers:
+                            if passenger.get('phone'):
+                                passengers_to_notify.append({
+                                    'name': passenger.get('name', 'Cliente'),
+                                    'phone': passenger['phone']
+                                })
+                    # Senão, usa o passageiro principal (passageiro único)
+                    elif order.phone:
                         passengers_to_notify.append({
                             'name': order.passenger_name or "Cliente",
                             'phone': order.phone
                         })
-                    
-                    # Adiciona passageiros adicionais (se houver)
-                    if order.passengers:
-                        for passenger in order.passengers:
-                            if passenger.get('phone'):
-                                # Evita duplicatas
-                                if not any(p['phone'] == passenger['phone'] for p in passengers_to_notify):
-                                    passengers_to_notify.append({
-                                        'name': passenger.get('name', 'Cliente'),
-                                        'phone': passenger['phone']
-                                    })
                     
                     # Envia mensagem para cada passageiro
                     whatsapp_sent_count = 0
@@ -391,20 +388,20 @@ class TaxiOrderProcessor:
                     # Lista de passageiros para notificar
                     passengers_to_notify = []
                     
-                    if order.phone:
+                    # Se houver múltiplos passageiros, usa APENAS a lista individualizada
+                    if order.passengers:
+                        for passenger in order.passengers:
+                            if passenger.get('phone'):
+                                passengers_to_notify.append({
+                                    'name': passenger.get('name', 'Cliente'),
+                                    'phone': passenger['phone']
+                                })
+                    # Senão, usa o passageiro principal (passageiro único)
+                    elif order.phone:
                         passengers_to_notify.append({
                             'name': order.passenger_name or "Cliente",
                             'phone': order.phone
                         })
-                    
-                    if order.passengers:
-                        for passenger in order.passengers:
-                            if passenger.get('phone'):
-                                if not any(p['phone'] == passenger['phone'] for p in passengers_to_notify):
-                                    passengers_to_notify.append({
-                                        'name': passenger.get('name', 'Cliente'),
-                                        'phone': passenger['phone']
-                                    })
                     
                     # Envia notificação de erro para cada passageiro
                     for passenger in passengers_to_notify:

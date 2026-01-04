@@ -63,38 +63,32 @@ def test_multiple_passengers_logic():
     # ===== LÓGICA DO PROCESSOR (COPIADA) =====
     passengers_to_notify = []
     
-    # Adiciona passageiro principal (se houver telefone)
-    if order.phone:
+    # Se houver múltiplos passageiros, usa APENAS a lista individualizada
+    if order.passengers:
+        for idx, passenger in enumerate(order.passengers, 1):
+            if passenger.get('phone'):
+                passengers_to_notify.append({
+                    'name': passenger.get('name', 'Cliente'),
+                    'phone': passenger['phone']
+                })
+                print(f"✅ [Pass. {idx}] {passenger['name']} - {passenger['phone']}")
+            else:
+                print(f"⚠️ [Pass. {idx}] {passenger.get('name', 'Sem nome')} - SEM TELEFONE (ignorado)")
+    # Senão, usa o passageiro principal (passageiro único)
+    elif order.phone:
         passengers_to_notify.append({
             'name': order.passenger_name or "Cliente",
             'phone': order.phone
         })
         print(f"✅ [Principal] {order.passenger_name} - {order.phone}")
-    
-    # Adiciona passageiros adicionais (se houver)
-    if order.passengers:
-        for idx, passenger in enumerate(order.passengers, 1):
-            if passenger.get('phone'):
-                # Evita duplicatas
-                if not any(p['phone'] == passenger['phone'] for p in passengers_to_notify):
-                    passengers_to_notify.append({
-                        'name': passenger.get('name', 'Cliente'),
-                        'phone': passenger['phone']
-                    })
-                    print(f"✅ [Pass. {idx}] {passenger['name']} - {passenger['phone']}")
-                else:
-                    print(f"⚠️ [Pass. {idx}] {passenger['name']} - {passenger['phone']} (DUPLICADO, ignorado)")
-            else:
-                print(f"⚠️ [Pass. {idx}] {passenger.get('name', 'Sem nome')} - SEM TELEFONE (ignorado)")
     # ===== FIM DA LÓGICA =====
     
     print(f"\n{'─' * 80}")
     print("FASE 2: Resultado Final")
     print(f"{'─' * 80}")
     print(f"\n📊 Estatísticas:")
-    print(f"  • Total de passageiros no pedido: {len(order.passengers) + 1}")  # +1 do principal
-    print(f"  • Passageiros com telefone válido: {len([p for p in order.passengers if p.get('phone')]) + 1}")
-    print(f"  • Duplicatas detectadas: 1")  # Gasparino está duplicado
+    print(f"  • Total de passageiros no pedido: {len(order.passengers)}")
+    print(f"  • Passageiros com telefone válido: {len([p for p in order.passengers if p.get('phone')])}")
     print(f"  • Sem telefone: 1")  # Maria sem telefone
     print(f"  • Total de mensagens WhatsApp: {len(passengers_to_notify)}")
     
