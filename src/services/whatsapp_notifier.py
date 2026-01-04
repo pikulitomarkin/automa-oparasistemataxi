@@ -88,22 +88,31 @@ class WhatsAppNotifier:
         
         return digits_only
     
-    def generate_success_message(self, name: str, destination: str) -> str:
+    def generate_success_message(self, name: str, destination: str, pickup_time: str = None) -> str:
         """
         Gera mensagem de confirmação de agendamento bem-sucedido.
         
         Args:
             name: Nome do passageiro.
             destination: Endereço de destino.
+            pickup_time: Data e hora do agendamento formatada (ex: "Segunda-feira, 04/01/2026 às 14:00").
             
         Returns:
             Texto da mensagem formatado.
         """
-        return (
-            f"Olá, {name}! 🚖\n\n"
-            f"Seu táxi para *{destination}* foi agendado com sucesso pela nossa central.\n\n"
-            f"O motorista chegará em breve. Tenha uma ótima viagem! ✨"
-        )
+        if pickup_time:
+            return (
+                f"Olá, {name}! 🚖\n\n"
+                f"Seu táxi para *{destination}* foi agendado com sucesso pela nossa central.\n\n"
+                f"📅 *Data/Hora:* {pickup_time}\n\n"
+                f"O motorista chegará em breve. Tenha uma ótima viagem! ✨"
+            )
+        else:
+            return (
+                f"Olá, {name}! 🚖\n\n"
+                f"Seu táxi para *{destination}* foi agendado com sucesso pela nossa central.\n\n"
+                f"O motorista chegará em breve. Tenha uma ótima viagem! ✨"
+            )
     
     def generate_error_message(self, name: str, destination: str) -> str:
         """
@@ -193,7 +202,8 @@ class WhatsAppNotifier:
         name: str,
         phone: str,
         destination: str,
-        status: str
+        status: str,
+        pickup_time: str = None
     ) -> Dict:
         """
         Envia mensagem de confirmação via WhatsApp.
@@ -203,6 +213,7 @@ class WhatsAppNotifier:
             phone: Telefone do passageiro.
             destination: Endereço de destino.
             status: Status do agendamento ("Sucesso" ou "Erro").
+            pickup_time: Data e hora do agendamento formatada (opcional).
             
         Returns:
             Resposta da API Evolution.
@@ -225,7 +236,7 @@ class WhatsAppNotifier:
         
         # Gera mensagem baseada no status
         if status.lower() in ['sucesso', 'success', 'dispatched']:
-            message = self.generate_success_message(name, destination)
+            message = self.generate_success_message(name, destination, pickup_time)
         else:
             message = self.generate_error_message(name, destination)
         

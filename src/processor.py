@@ -352,13 +352,43 @@ class TaxiOrderProcessor:
                     
                     # Envia mensagem para cada passageiro
                     whatsapp_sent_count = 0
+                    
+                    # Formata data/hora do agendamento
+                    pickup_time_formatted = None
+                    if order.pickup_time:
+                        try:
+                            # Converte para timezone de Brasília
+                            import pytz
+                            from datetime import datetime
+                            
+                            if isinstance(order.pickup_time, str):
+                                pickup_dt = datetime.fromisoformat(order.pickup_time.replace('Z', '+00:00'))
+                            else:
+                                pickup_dt = order.pickup_time
+                            
+                            # Garante timezone Brasil
+                            br_tz = pytz.timezone('America/Sao_Paulo')
+                            if pickup_dt.tzinfo is None:
+                                pickup_dt = br_tz.localize(pickup_dt)
+                            else:
+                                pickup_dt = pickup_dt.astimezone(br_tz)
+                            
+                            # Formata: "Segunda-feira, 06/01/2026 às 14:00"
+                            dias_semana = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 
+                                          'Sexta-feira', 'Sábado', 'Domingo']
+                            dia_semana = dias_semana[pickup_dt.weekday()]
+                            pickup_time_formatted = f"{dia_semana}, {pickup_dt.strftime('%d/%m/%Y às %H:%M')}"
+                        except Exception as e:
+                            logger.warning(f"Failed to format pickup_time: {e}")
+                    
                     for passenger in passengers_to_notify:
                         try:
                             whatsapp_response = self.whatsapp_notifier.send_message(
                                 name=passenger['name'],
                                 phone=passenger['phone'],
                                 destination=order.dropoff_address or order.pickup_address or "destino",
-                                status="Sucesso"
+                                status="Sucesso",
+                                pickup_time=pickup_time_formatted
                             )
                             whatsapp_sent_count += 1
                             
