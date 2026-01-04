@@ -331,21 +331,54 @@ class TaxiOrderProcessor:
                 logger.info(f"Order {order.id} successfully dispatched to MinasTaxi")
                 
                 # FASE 4: Notificação WhatsApp (se habilitada)
-                if self.whatsapp_enabled and self.whatsapp_notifier and order.phone:
-                    try:
-                        whatsapp_response = self.whatsapp_notifier.send_message(
-                            name=order.passenger_name or "Cliente",
-                            phone=order.phone,
-                            destination=order.dropoff_address or order.pickup_address or "destino",
-                            status="Sucesso"
-                        )
+                if self.whatsapp_enabled and self.whatsapp_notifier:
+                    # Lista de passageiros para notificar
+                    passengers_to_notify = []
+                    
+                    # Adiciona passageiro principal (se houver telefone)
+                    if order.phone:
+                        passengers_to_notify.append({
+                            'name': order.passenger_name or "Cliente",
+                            'phone': order.phone
+                        })
+                    
+                    # Adiciona passageiros adicionais (se houver)
+                    if order.passengers:
+                        for passenger in order.passengers:
+                            if passenger.get('phone'):
+                                # Evita duplicatas
+                                if not any(p['phone'] == passenger['phone'] for p in passengers_to_notify):
+                                    passengers_to_notify.append({
+                                        'name': passenger.get('name', 'Cliente'),
+                                        'phone': passenger['phone']
+                                    })
+                    
+                    # Envia mensagem para cada passageiro
+                    whatsapp_sent_count = 0
+                    for passenger in passengers_to_notify:
+                        try:
+                            whatsapp_response = self.whatsapp_notifier.send_message(
+                                name=passenger['name'],
+                                phone=passenger['phone'],
+                                destination=order.dropoff_address or order.pickup_address or "destino",
+                                status="Sucesso"
+                            )
+                            whatsapp_sent_count += 1
+                            
+                            # Armazena o message_id do primeiro envio
+                            if whatsapp_sent_count == 1:
+                                order.whatsapp_message_id = whatsapp_response.get('message_id')
+                            
+                        except Exception as whatsapp_error:
+                            logger.warning(f"Failed to send WhatsApp to {passenger['name']} ({passenger['phone']}): {whatsapp_error}")
+                    
+                    # Marca como enviado se pelo menos uma mensagem foi enviada
+                    if whatsapp_sent_count > 0:
                         order.whatsapp_sent = True
-                        order.whatsapp_message_id = whatsapp_response.get('message_id')
                         self.db.update_order(order)
-                        logger.info(f"WhatsApp notification sent for order {order.id}")
-                    except Exception as whatsapp_error:
-                        logger.warning(f"Failed to send WhatsApp for order {order.id}: {whatsapp_error}")
-                        # Não falha o pedido por erro no WhatsApp
+                        logger.info(f"✅ WhatsApp sent to {whatsapp_sent_count}/{len(passengers_to_notify)} passengers for order {order.id}")
+                    else:
+                        logger.warning(f"⚠️ No WhatsApp messages sent for order {order.id}")
                 
             except MinasTaxiAPIError as e:
                 order.status = OrderStatus.FAILED
@@ -354,17 +387,39 @@ class TaxiOrderProcessor:
                 logger.error(f"Failed to dispatch order {order.id}: {e}")
                 
                 # Notifica erro via WhatsApp (se habilitado)
-                if self.whatsapp_enabled and self.whatsapp_notifier and order.phone:
-                    try:
-                        self.whatsapp_notifier.send_message(
-                            name=order.passenger_name or "Cliente",
-                            phone=order.phone,
-                            destination=order.dropoff_address or order.pickup_address or "destino",
-                            status="Erro"
-                        )
-                        logger.info(f"Error notification sent via WhatsApp for order {order.id}")
-                    except Exception as whatsapp_error:
-                        logger.warning(f"Failed to send error WhatsApp: {whatsapp_error}")
+                if self.whatsapp_enabled and self.whatsapp_notifier:
+                    # Lista de passageiros para notificar
+                    passengers_to_notify = []
+                    
+                    if order.phone:
+                        passengers_to_notify.append({
+                            'name': order.passenger_name or "Cliente",
+                            'phone': order.phone
+                        })
+                    
+                    if order.passengers:
+                        for passenger in order.passengers:
+                            if passenger.get('phone'):
+                                if not any(p['phone'] == passenger['phone'] for p in passengers_to_notify):
+                                    passengers_to_notify.append({
+                                        'name': passenger.get('name', 'Cliente'),
+                                        'phone': passenger['phone']
+                                    })
+                    
+                    # Envia notificação de erro para cada passageiro
+                    for passenger in passengers_to_notify:
+                        try:
+                            self.whatsapp_notifier.send_message(
+                                name=passenger['name'],
+                                phone=passenger['phone'],
+                                destination=order.dropoff_address or order.pickup_address or "destino",
+                                status="Erro"
+                            )
+                        except Exception as whatsapp_error:
+                            logger.warning(f"Failed to send error WhatsApp to {passenger['name']}: {whatsapp_error}")
+                    
+                    if passengers_to_notify:
+                        logger.info(f"Error notifications sent via WhatsApp for order {order.id}")
             
         except Exception as e:
             order.status = OrderStatus.FAILED
