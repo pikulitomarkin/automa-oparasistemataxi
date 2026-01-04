@@ -31,49 +31,101 @@ class DatabaseManager:
         """Cria as tabelas necessárias se não existirem."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS orders (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email_id TEXT UNIQUE,
-                    passenger_name TEXT,
-                    phone TEXT,
-                    pickup_address TEXT,
-                    dropoff_address TEXT,
-                    pickup_lat REAL,
-                    pickup_lng REAL,
-                    dropoff_lat REAL,
-                    dropoff_lng REAL,
-                    pickup_time TEXT,
-                    status TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    raw_email_body TEXT,
-                    error_message TEXT,
-                    minastaxi_order_id TEXT,
-                    cluster_id INTEGER,
-                    whatsapp_sent INTEGER DEFAULT 0,
-                    whatsapp_message_id TEXT,
-                    notes TEXT,
-                    cost_center TEXT
-                )
-            """)
             
-            # Índices para melhorar performance de queries
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_status 
-                ON orders(status)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_pickup_time 
-                ON orders(pickup_time)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_created_at 
-                ON orders(created_at DESC)
-            """)
+            # Verifica se a tabela já existe
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='orders'")
+            table_exists = cursor.fetchone() is not None
+            
+            if not table_exists:
+                # Cria tabela com schema completo
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS orders (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email_id TEXT UNIQUE,
+                        passenger_name TEXT,
+                        phone TEXT,
+                        pickup_address TEXT,
+                        dropoff_address TEXT,
+                        pickup_lat REAL,
+                        pickup_lng REAL,
+                        dropoff_lat REAL,
+                        dropoff_lng REAL,
+                        pickup_time TEXT,
+                        status TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        raw_email_body TEXT,
+                        error_message TEXT,
+                        minastaxi_order_id TEXT,
+                        cluster_id INTEGER,
+                        whatsapp_sent INTEGER DEFAULT 0,
+                        whatsapp_message_id TEXT,
+                        notes TEXT,
+                        cost_center TEXT
+                    )
+                """)
+                logger.info(f"Created new orders table at {self.db_path}")
+            
+            # Índices para melhorar performance de queries (safe - IF NOT EXISTS)
+            try:
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_status 
+                    ON orders(status)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_pickup_time 
+                    ON orders(pickup_time)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_created_at 
+                    ON orders(created_at DESC)
+                """)
+            except sqlite3.OperationalError as e:
+                logger.warning(f"Could not create index (column may not exist yet): {e}")
             
             conn.commit()
             logger.info(f"Database initialized at {self.db_path}")
+            
+            # Executa migrações automáticas
+            self._run_migrations()
+    
+    def _run_migrations(self):
+        """
+        Executa migrações automáticas do banco de dados.
+        Adiciona colunas que não existem sem perder dados.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Verifica colunas existentes
+                cursor.execute("PRAGMA table_info(orders)")
+                existing_columns = [col[1] for col in cursor.fetchall()]
+                
+                # Lista de colunas necessárias (novas migrações)
+                required_columns = {
+                    'notes': 'TEXT',
+                    'cost_center': 'TEXT'
+                }
+                
+                # Adiciona colunas que faltam
+                migrations_applied = []
+                for col_name, col_type in required_columns.items():
+                    if col_name not in existing_columns:
+                        logger.info(f"Running migration: Adding column '{col_name}'")
+                        cursor.execute(f"ALTER TABLE orders ADD COLUMN {col_name} {col_type}")
+                        migrations_applied.append(col_name)
+                
+                if migrations_applied:
+                    conn.commit()
+                    logger.info(f"✅ Migrations completed: {', '.join(migrations_applied)}")
+                else:
+                    logger.debug("Database schema is up to date")
+                    
+        except Exception as e:
+            logger.error(f"Migration error: {e}")
+            # Não falha a inicialização se migração falhar
+            # (tabela pode já ter as colunas ou ser primeira execução)
     
     def create_order(self, order: Order) -> int:
         """
