@@ -319,11 +319,15 @@ class MinasTaxiClient:
         if not main_phone and users:
             main_phone = users[0].get('phone', "")
         
-        # Extrai centro de custo do campo notes
-        cost_center = self._extract_cost_center(order.notes or "")
+        # Centro de custo: usa o extraído diretamente pelo LLM ou tenta extrair das notes
+        cost_center = order.cost_center if order.cost_center else self._extract_cost_center(order.notes or "")
         
-        # Detecta empresa com base no destino
-        company = self._detect_company(order.dropoff_address or "")
+        # Determina código da empresa: prioriza company_code extraído do email
+        company_code = order.company_code if order.company_code else None
+        
+        # Se não foi extraído do email, tenta detectar pelo destino
+        if not company_code:
+            company_code = self._detect_company(order.dropoff_address or "")
         
         # Monta observação com centro de custo
         passenger_note = ""
@@ -357,10 +361,16 @@ class MinasTaxiClient:
         # Adiciona centro de custo se disponível
         if cost_center:
             payload["cost_center"] = cost_center
+            logger.info(f"✅ Centro de custo: {cost_center}")
+        else:
+            logger.warning("⚠️ Centro de custo não encontrado")
         
-        # Adiciona empresa/código se detectado
-        if company:
-            payload["company_code"] = company
+        # Adiciona código de empresa se disponível (prioriza extraído do email)
+        if company_code:
+            payload["company_code"] = company_code
+            logger.info(f"✅ Código da empresa: {company_code}")
+        else:
+            logger.warning("⚠️ Código da empresa não encontrado")
         
         # Adiciona destino se fornecido
         if order.dropoff_address and order.dropoff_lat and order.dropoff_lng:

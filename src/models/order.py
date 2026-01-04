@@ -51,6 +51,7 @@ class Order:
     # Centro de custo e observações
     notes: Optional[str] = None
     cost_center: Optional[str] = None  # Extraído de notes (ex: "1.07002.07.001")
+    company_code: Optional[str] = None  # Código da empresa (ex: "284")
     
     # Status e controle
     status: OrderStatus = OrderStatus.RECEIVED
@@ -90,7 +91,8 @@ class Order:
             'minastaxi_order_id': self.minastaxi_order_id,
             'cluster_id': self.cluster_id,
             'notes': self.notes,
-            'cost_center': self.cost_center
+            'cost_center': self.cost_center,
+            'company_code': self.company_code
         }
     
     def is_complete(self) -> bool:

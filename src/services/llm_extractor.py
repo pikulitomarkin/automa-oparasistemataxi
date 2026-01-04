@@ -27,10 +27,17 @@ class LLMExtractor:
 Os emails seguem estes padrões:
 - Assunto: "PROGRAMAÇÃO DE TAXI/CARRO" + horário
 - Corpo: Texto livre ou tabela com dados dos passageiros
-- CC: Código de centro de custo (ex: CC:20086)
+- **EMPRESA**: Campo crítico com código (ex: "Empresa: 284", "*Empresa: 284 - Delp*", "Emp. 123")
+- **CENTRO DE CUSTO**: Campo crítico (ex: "CC:20086", "Centro de Custo: 1.07002.07.004", "C.Custo: 123")
 - Passageiros: Nome, Matrícula (MIN/MIO/MIP), Telefone (OPCIONAL)
 - Locais: Podem ser siglas (CSN, BH, MARIANA, LAFAIETE) ou endereços completos
 - Horários: Relativos (hoje, amanhã) ou datas específicas
+
+⚠️ ATENÇÃO CRÍTICA:
+1. **SEMPRE** procurar por código de empresa usando palavras-chave: Empresa, Emp, Company, Código de Empresa, Código Empresa
+2. **SEMPRE** procurar por centro de custo usando: CC, C.Custo, Centro de Custo, Centro Custo, Cost Center
+3. Aceitar formatos variados: com/sem pontuação, com/sem espaços, negrito (*), maiúsculas/minúsculas
+4. Extrair APENAS números (e pontos/traços no centro de custo)
 
 MAPEAMENTO DE LOCAIS:
 - CSN = CSN Mineração, Congonhas, MG (Coordenadas aproximadas: -20.5033, -43.8569)
@@ -47,7 +54,9 @@ Extraia os seguintes campos em formato JSON:
   "pickup_address": "Endereço/local de COLETA (origem). Se for sigla, expanda: CSN → 'CSN Mineração, Congonhas, MG'",
   "dropoff_address": "Endereço/local de DESTINO. Se for sigla, expanda",
   "pickup_time": "Data e hora de coleta no formato ISO 8601 (YYYY-MM-DDTHH:MM:SS-03:00)",
-  "notes": "Observações relevantes: CC, múltiplos passageiros, retorno programado, telefones adicionais, etc",
+  "notes": "Todas as observações relevantes: CC, múltiplos passageiros, retorno programado, telefones adicionais, empresa, etc. Incluir TUDO que for relevante",
+  "company_code": "CRÍTICO: Extrair código da empresa de QUALQUER formato. Exemplos: 'Empresa: 284' → '284', '*Empresa: 284 - Nome*' → '284', 'Emp. 123' → '123', 'Company: 456' → '456'. Procurar por palavras-chave: Empresa, Emp, Company, Código de Empresa. Retornar APENAS o código numérico. Se não encontrar, retornar string vazia ''",
+  "cost_center": "CRÍTICO: Extrair centro de custo de QUALQUER formato. Exemplos: 'CC: 20086' → '20086', 'Centro de Custo: 1.07002.07.004' → '1.07002.07.004', 'C.Custo: 123' → '123', 'CC 456' → '456'. Procurar por: CC, C.Custo, Centro de Custo, Cost Center. Aceitar números simples ou com pontos/traços. Se não encontrar, retornar string vazia ''",
   "passengers": [
     {{
       "name": "Nome completo do passageiro",
