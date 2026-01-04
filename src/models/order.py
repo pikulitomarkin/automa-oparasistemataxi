@@ -48,6 +48,10 @@ class Order:
     has_return: bool = False
     return_time: Optional[datetime] = None
     
+    # Centro de custo e observações
+    notes: Optional[str] = None
+    cost_center: Optional[str] = None  # Extraído de notes (ex: "1.07002.07.001")
+    
     # Status e controle
     status: OrderStatus = OrderStatus.RECEIVED
     created_at: datetime = field(default_factory=datetime.now)
@@ -84,7 +88,9 @@ class Order:
             'updated_at': self.updated_at.isoformat(),
             'error_message': self.error_message,
             'minastaxi_order_id': self.minastaxi_order_id,
-            'cluster_id': self.cluster_id
+            'cluster_id': self.cluster_id,
+            'notes': self.notes,
+            'cost_center': self.cost_center
         }
     
     def is_complete(self) -> bool:

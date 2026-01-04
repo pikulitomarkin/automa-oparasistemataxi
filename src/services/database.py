@@ -52,7 +52,9 @@ class DatabaseManager:
                     minastaxi_order_id TEXT,
                     cluster_id INTEGER,
                     whatsapp_sent INTEGER DEFAULT 0,
-                    whatsapp_message_id TEXT
+                    whatsapp_message_id TEXT,
+                    notes TEXT,
+                    cost_center TEXT
                 )
             """)
             
@@ -91,8 +93,8 @@ class DatabaseManager:
                     dropoff_address, pickup_lat, pickup_lng, dropoff_lat, 
                     dropoff_lng, pickup_time, status, created_at, updated_at,
                     raw_email_body, error_message, minastaxi_order_id, cluster_id,
-                    whatsapp_sent, whatsapp_message_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    whatsapp_sent, whatsapp_message_id, notes, cost_center
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 order.email_id,
                 order.passenger_name,
@@ -110,9 +112,11 @@ class DatabaseManager:
                 order.raw_email_body,
                 order.error_message,
                 order.minastaxi_order_id,
+                order.cluster_id,
                 1 if order.whatsapp_sent else 0,
                 order.whatsapp_message_id,
-                order.cluster_id
+                order.notes,
+                order.cost_center
             ))
             conn.commit()
             order_id = cursor.lastrowid
@@ -148,7 +152,9 @@ class DatabaseManager:
                     updated_at = ?,
                     error_message = ?,
                     minastaxi_order_id = ?,
-                    cluster_id = ?
+                    cluster_id = ?,
+                    notes = ?,
+                    cost_center = ?
                 WHERE id = ?
             """, (
                 order.passenger_name,
@@ -165,6 +171,8 @@ class DatabaseManager:
                 order.error_message,
                 order.minastaxi_order_id,
                 order.cluster_id,
+                order.notes,
+                order.cost_center,
                 order.id
             ))
             conn.commit()

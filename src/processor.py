@@ -200,6 +200,7 @@ class TaxiOrderProcessor:
             order.phone = extracted_data.get('phone')
             order.pickup_address = extracted_data.get('pickup_address')
             order.dropoff_address = extracted_data.get('dropoff_address')
+            order.notes = extracted_data.get('notes')  # Centro de custo e observações
             
             # Múltiplos passageiros (novo)
             order.passengers = extracted_data.get('passengers', [])

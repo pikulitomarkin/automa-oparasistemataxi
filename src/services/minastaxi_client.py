@@ -2,6 +2,7 @@
 MinasTaxi API Client - Original Software Integration
 Documentação completa em: docs/API_MINASTAXI.md
 """
+import re
 import logging
 import requests
 import uuid
@@ -147,6 +148,64 @@ class MinasTaxiClient:
         short_uuid = str(uuid.uuid4())[:8].upper()
         return f"{timestamp}{short_uuid}"
     
+    def _extract_cost_center(self, notes: str) -> Optional[str]:
+        """
+        Extrai o centro de custo das observações.
+        
+        Args:
+            notes: Campo de observações com possível CC.
+            
+        Returns:
+            Código do centro de custo ou None.
+            
+        Examples:
+            "CC: 20086" -> "20086"
+            "CENTRO DE CUSTO 1.07002.07.001" -> "1.07002.07.001"
+        """
+        if not notes:
+            return None
+        
+        # Padrão: CC: 12345 ou CC:12345
+        match = re.search(r'CC\s*:\s*(\d+)', notes, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        
+        # Padrão: CENTRO DE CUSTO 1.07002.07.001
+        match = re.search(r'CENTRO DE CUSTO\s*([\d.]+)', notes, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        
+        # Padrão: sequência numérica com pontos (ex: 1.07002.07.001)
+        match = re.search(r'\b(\d+\.\d+\.\d+\.\d+)\b', notes)
+        if match:
+            return match.group(1)
+        
+        return None
+    
+    def _detect_company(self, destination: str) -> Optional[str]:
+        """
+        Detecta o código da empresa com base no destino.
+        
+        Args:
+            destination: Endereço de destino.
+            
+        Returns:
+            Código da empresa ou None.
+        """
+        if not destination:
+            return None
+        
+        destination_upper = destination.upper()
+        
+        # DELP - Delegacia Especializada
+        if "DELP" in destination_upper or "DELEGACIA" in destination_upper:
+            return "DELP"
+        
+        # Outros padrões podem ser adicionados aqui
+        # Por exemplo: CSN, TECNOKOR, etc.
+        
+        return None
+    
     def _remove_country_code(self, phone: str) -> str:
         """
         Remove DDI (55) do telefone brasileiro para envio ao MinasTaxi.
@@ -260,6 +319,24 @@ class MinasTaxiClient:
         if not main_phone and users:
             main_phone = users[0].get('phone', "")
         
+        # Extrai centro de custo do campo notes
+        cost_center = self._extract_cost_center(order.notes or "")
+        
+        # Detecta empresa com base no destino
+        company = self._detect_company(order.dropoff_address or "")
+        
+        # Monta observação com centro de custo
+        passenger_note = ""
+        if cost_center:
+            passenger_note = f"C.Custo: {cost_center}"
+        if order.notes:
+            if passenger_note:
+                passenger_note += f" | {order.notes}"
+            else:
+                passenger_note = order.notes
+        if not passenger_note and order.raw_email_body:
+            passenger_note = order.raw_email_body
+        
         # Monta payload no formato Original Software
         payload = {
             "partner": "1",  # Fixo como "1" conforme padrão
@@ -270,12 +347,20 @@ class MinasTaxiClient:
             "category": "taxi",  # Pode ser parametrizado depois
             "passengers_no": passengers_count,
             "suitcases_no": 0,
-            "passenger_note": order.raw_email_body or "",
+            "passenger_note": passenger_note,
             "passenger_name": order.passenger_name,
             "passenger_phone_number": self._remove_country_code(main_phone) if main_phone else "",
             "payment_type": "ONLINE_PAYMENT",  # Padrão
             "users": users
         }
+        
+        # Adiciona centro de custo se disponível
+        if cost_center:
+            payload["cost_center"] = cost_center
+        
+        # Adiciona empresa/código se detectado
+        if company:
+            payload["company_code"] = company
         
         # Adiciona destino se fornecido
         if order.dropoff_address and order.dropoff_lat and order.dropoff_lng:
