@@ -52,6 +52,7 @@ class GeocodingService:
     ) -> Optional[Tuple[float, float]]:
         """
         Converte um endereço em coordenadas (latitude, longitude).
+        PRIORIZA Minas Gerais e região metropolitana de Belo Horizonte.
         
         Args:
             address: Endereço completo em texto.
@@ -72,10 +73,36 @@ class GeocodingService:
         for idx, candidate in enumerate(variants):
             for attempt in range(max_retries):
                 try:
-                    location = self.geolocator.geocode(candidate)
+                    # Para Google Maps, usar bounds de Minas Gerais
+                    if self.use_google:
+                        location = self.geolocator.geocode(
+                            candidate,
+                            bounds=[(-23.0, -51.0), (-14.0, -39.0)],  # Bounds aproximados de MG
+                            region='br'
+                        )
+                    else:
+                        # Nominatim: buscar múltiplos resultados e filtrar por MG
+                        locations = self.geolocator.geocode(
+                            candidate,
+                            exactly_one=False,
+                            limit=5,
+                            addressdetails=True
+                        )
+                        
+                        if locations:
+                            # Filtrar resultados para Minas Gerais
+                            location = self._filter_by_minas_gerais(locations, candidate)
+                        else:
+                            location = None
 
                     if location:
                         lat, lng = location.latitude, location.longitude
+                        
+                        # Validação final: verificar se está em Minas Gerais (bounds aproximados)
+                        if not self._is_in_minas_gerais(lat, lng):
+                            logger.warning(f"Location ({lat:.6f}, {lng:.6f}) is outside Minas Gerais, skipping")
+                            break  # tenta próxima variante
+                        
                         logger.info(f"Geocoded '{address}' using '{candidate}' -> ({lat:.6f}, {lng:.6f})")
                         return (lat, lng)
                     else:
@@ -172,6 +199,7 @@ class GeocodingService:
     def _normalize_address(self, address: str) -> str:
         """
         Normaliza o endereço para melhorar precisão do geocoding.
+        FORÇA Minas Gerais como estado padrão.
         
         Args:
             address: Endereço original.
@@ -201,18 +229,142 @@ class GeocodingService:
         known_mappings = {
             'Delp Engenharia Vespasiano': 'Av. das Nações, 999, Distrito Industrial, Vespasiano, MG, Brasil',
             'Delp Engenharia': 'Av. das Nações, 999, Distrito Industrial, Vespasiano, MG, Brasil',
-            'Aeroporto Confins': 'Aeroporto Internacional Tancredo Neves - Confins, MG'
+            'Aeroporto Confins': 'Aeroporto Internacional Tancredo Neves - Confins, MG, Brasil'
         }
         for k, v in known_mappings.items():
             if k.lower() in normalized.lower():
                 return v
 
-        # Se não menciona estado/cidade, adiciona Belo Horizonte, MG (padrão local)
+        # CRÍTICO: Se não menciona estado explicitamente, adiciona Minas Gerais
         lower = normalized.lower()
-        if not any(x in lower for x in ['mg', 'minas gerais', 'belo horizonte', 'belo-horizonte', 'vespasiano', 'contagem']):
-            normalized += ', Belo Horizonte, MG, Brasil'
+        has_state = any(x in lower for x in ['mg', 'minas gerais', 'minas-gerais'])
+        
+        # Lista de cidades da região metropolitana de BH
+        metro_bh_cities = [
+            'belo horizonte', 'belo-horizonte', 'betim', 'contagem', 'nova lima',
+            'ribeirão das neves', 'sabará', 'santa luzia', 'vespasiano',
+            'ibirité', 'lagoa santa', 'pedro leopoldo', 'sete lagoas', 'brumadinho',
+            'esmeraldas', 'florestal', 'igarapé', 'mateus leme', 'rio acima',
+            'confins', 'matozinhos', 'raposos', 'nova união', 'taquaraçu de minas',
+            'itaguara', 'juatuba', 'mário campos', 'são joaquim de bicas',
+            'itatiaiuçu', 'fortuna de minas', 'prudente de morais', 'funilândia',
+            'capim branco', 'jaboticatubas', 'baldim'
+        ]
+        
+        has_city = any(city in lower for city in metro_bh_cities)
+        
+        if not has_state:
+            # Se tem cidade conhecida da região, adiciona apenas MG
+            if has_city:
+                normalized += ', MG, Brasil'
+            else:
+                # Se não tem cidade nem estado, assume Belo Horizonte
+                normalized += ', Belo Horizonte, MG, Brasil'
+        elif has_state and 'brasil' not in lower:
+            # Tem MG mas não tem Brasil
+            normalized += ', Brasil'
 
         return normalized
+    
+    def _is_in_minas_gerais(self, lat: float, lng: float) -> bool:
+        """
+        Verifica se coordenadas estão dentro de Minas Gerais.
+        Usa bounding box aproximado do estado.
+        
+        Args:
+            lat: Latitude.
+            lng: Longitude.
+            
+        Returns:
+            True se está em MG, False caso contrário.
+        """
+        # Bounding box de Minas Gerais (aproximado)
+        MG_MIN_LAT = -22.9
+        MG_MAX_LAT = -14.2
+        MG_MIN_LNG = -51.0
+        MG_MAX_LNG = -39.8
+        
+        # Região metropolitana de BH (prioridade)
+        BH_MIN_LAT = -20.2
+        BH_MAX_LAT = -19.4
+        BH_MIN_LNG = -44.2
+        BH_MAX_LNG = -43.7
+        
+        # Verifica se está na região de BH (prioridade máxima)
+        if (BH_MIN_LAT <= lat <= BH_MAX_LAT and 
+            BH_MIN_LNG <= lng <= BH_MAX_LNG):
+            return True
+        
+        # Verifica se está em MG
+        if (MG_MIN_LAT <= lat <= MG_MAX_LAT and 
+            MG_MIN_LNG <= lng <= MG_MAX_LNG):
+            return True
+        
+        return False
+    
+    def _filter_by_minas_gerais(self, locations: list, query: str):
+        """
+        Filtra lista de localizações priorizando Minas Gerais.
+        
+        Args:
+            locations: Lista de localizações do Nominatim.
+            query: Endereço original buscado.
+            
+        Returns:
+            Melhor localização filtrada ou None.
+        """
+        if not locations:
+            return None
+        
+        # Primeira tentativa: localizações em Minas Gerais
+        mg_locations = []
+        bh_locations = []
+        
+        for loc in locations:
+            try:
+                lat, lng = loc.latitude, loc.longitude
+                
+                # Verifica se tem detalhes de endereço
+                address_details = loc.raw.get('address', {}) if hasattr(loc, 'raw') else {}
+                state = address_details.get('state', '').lower()
+                
+                # Filtro por estado
+                if 'minas gerais' in state or state == 'mg':
+                    # Priorizar região metropolitana de BH
+                    if self._is_in_bh_metro(lat, lng):
+                        bh_locations.append(loc)
+                    else:
+                        mg_locations.append(loc)
+                # Fallback: verificar por coordenadas
+                elif self._is_in_minas_gerais(lat, lng):
+                    if self._is_in_bh_metro(lat, lng):
+                        bh_locations.append(loc)
+                    else:
+                        mg_locations.append(loc)
+            except Exception as e:
+                logger.debug(f"Error filtering location: {e}")
+                continue
+        
+        # Prioridade: BH metro > MG > primeira opção
+        if bh_locations:
+            logger.info(f"Found {len(bh_locations)} results in BH metro area for '{query}'")
+            return bh_locations[0]
+        elif mg_locations:
+            logger.info(f"Found {len(mg_locations)} results in Minas Gerais for '{query}'")
+            return mg_locations[0]
+        else:
+            logger.warning(f"No results in Minas Gerais for '{query}', using first result")
+            return locations[0] if locations else None
+    
+    def _is_in_bh_metro(self, lat: float, lng: float) -> bool:
+        """Verifica se está na região metropolitana de BH."""
+        BH_MIN_LAT = -20.2
+        BH_MAX_LAT = -19.4
+        BH_MIN_LNG = -44.2
+        BH_MAX_LNG = -43.7
+        
+        return (BH_MIN_LAT <= lat <= BH_MAX_LAT and 
+                BH_MIN_LNG <= lng <= BH_MAX_LNG)
 
     def _generate_address_variants(self, normalized: str) -> list:
         """
