@@ -491,6 +491,13 @@ class DatabaseManager:
     
     def _row_to_order(self, row: sqlite3.Row) -> Order:
         """Converte uma linha do banco em objeto Order."""
+        # Helper para acessar colunas que podem não existir
+        def safe_get(row, key):
+            try:
+                return row[key]
+            except (IndexError, KeyError):
+                return None
+        
         return Order(
             id=row['id'],
             email_id=row['email_id'],
@@ -510,8 +517,8 @@ class DatabaseManager:
             error_message=row['error_message'],
             minastaxi_order_id=row['minastaxi_order_id'],
             cluster_id=row['cluster_id'],
-            notes=row.get('notes'),
-            cost_center=row.get('cost_center'),
-            company_code=row.get('company_code'),
-            company_cnpj=row.get('company_cnpj')
+            notes=safe_get(row, 'notes'),
+            cost_center=safe_get(row, 'cost_center'),
+            company_code=safe_get(row, 'company_code'),
+            company_cnpj=safe_get(row, 'company_cnpj')
         )
