@@ -15,6 +15,7 @@ from .services.whatsapp_notifier import WhatsAppNotifier
 from .services.database import DatabaseManager
 from .services.route_optimizer import RouteOptimizer
 from .models import Order, OrderStatus
+from .config.company_mapping import get_cnpj_from_company_code
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -203,6 +204,13 @@ class TaxiOrderProcessor:
             order.notes = extracted_data.get('notes')  # Observações gerais
             order.company_code = extracted_data.get('company_code')  # Código da empresa extraído do email
             order.cost_center = extracted_data.get('cost_center')  # Centro de custo extraído diretamente
+            
+            # Converte código da empresa para CNPJ
+            if order.company_code:
+                order.company_cnpj = get_cnpj_from_company_code(order.company_code)
+                logger.info(f"Company code {order.company_code} mapped to CNPJ {order.company_cnpj}")
+            else:
+                logger.warning("No company code found in email - will use default CNPJ")
             
             # Múltiplos passageiros (novo)
             order.passengers = extracted_data.get('passengers', [])

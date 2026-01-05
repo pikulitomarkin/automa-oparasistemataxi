@@ -52,6 +52,7 @@ class Order:
     notes: Optional[str] = None
     cost_center: Optional[str] = None  # Extraído de notes (ex: "1.07002.07.001")
     company_code: Optional[str] = None  # Código da empresa (ex: "284")
+    company_cnpj: Optional[str] = None  # CNPJ da empresa (ex: "02572696000156")
     
     # Status e controle
     status: OrderStatus = OrderStatus.RECEIVED
@@ -92,7 +93,8 @@ class Order:
             'cluster_id': self.cluster_id,
             'notes': self.notes,
             'cost_center': self.cost_center,
-            'company_code': self.company_code
+            'company_code': self.company_code,
+            'company_cnpj': self.company_cnpj
         }
     
     def is_complete(self) -> bool:

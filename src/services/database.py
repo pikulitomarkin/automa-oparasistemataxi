@@ -107,7 +107,8 @@ class DatabaseManager:
                 required_columns = {
                     'notes': 'TEXT',
                     'cost_center': 'TEXT',
-                    'company_code': 'TEXT'
+                    'company_code': 'TEXT',
+                    'company_cnpj': 'TEXT'
                 }
                 
                 # Adiciona colunas que faltam
@@ -121,6 +122,11 @@ class DatabaseManager:
                 if migrations_applied:
                     conn.commit()
                     logger.info(f"✅ Migrations completed: {', '.join(migrations_applied)}")
+                    
+                    # Se adicionou company_cnpj, popula baseado em company_code existente
+                    if 'company_cnpj' in migrations_applied:
+                        self._populate_company_cnpj(cursor)
+                        conn.commit()
                 else:
                     logger.debug("Database schema is up to date")
                     
@@ -128,6 +134,44 @@ class DatabaseManager:
             logger.error(f"Migration error: {e}")
             # Não falha a inicialização se migração falhar
             # (tabela pode já ter as colunas ou ser primeira execução)
+    
+    def _populate_company_cnpj(self, cursor):
+        """
+        Popula o campo company_cnpj baseado no company_code existente.
+        Chamado automaticamente após adicionar a coluna company_cnpj.
+        
+        Args:
+            cursor: Cursor SQLite ativo.
+        """
+        try:
+            from ..config.company_mapping import get_cnpj_from_company_code
+            
+            # Busca orders com company_code mas sem company_cnpj
+            cursor.execute("""
+                SELECT id, company_code 
+                FROM orders 
+                WHERE company_code IS NOT NULL 
+                AND (company_cnpj IS NULL OR company_cnpj = '')
+            """)
+            orders_to_update = cursor.fetchall()
+            
+            if not orders_to_update:
+                logger.info("No orders need company_cnpj population")
+                return
+            
+            updated_count = 0
+            for order_id, company_code in orders_to_update:
+                cnpj = get_cnpj_from_company_code(company_code)
+                cursor.execute(
+                    "UPDATE orders SET company_cnpj = ? WHERE id = ?",
+                    (cnpj, order_id)
+                )
+                updated_count += 1
+            
+            logger.info(f"✅ Populated company_cnpj for {updated_count} existing orders")
+            
+        except Exception as e:
+            logger.warning(f"Could not populate company_cnpj: {e}")
     
     def create_order(self, order: Order) -> int:
         """
@@ -147,8 +191,8 @@ class DatabaseManager:
                     dropoff_address, pickup_lat, pickup_lng, dropoff_lat, 
                     dropoff_lng, pickup_time, status, created_at, updated_at,
                     raw_email_body, error_message, minastaxi_order_id, cluster_id,
-                    whatsapp_sent, whatsapp_message_id, notes, cost_center, company_code
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    whatsapp_sent, whatsapp_message_id, notes, cost_center, company_code, company_cnpj
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 order.email_id,
                 order.passenger_name,
@@ -171,7 +215,8 @@ class DatabaseManager:
                 order.whatsapp_message_id,
                 order.notes,
                 order.cost_center,
-                order.company_code
+                order.company_code,
+                order.company_cnpj
             ))
             conn.commit()
             order_id = cursor.lastrowid
@@ -210,7 +255,8 @@ class DatabaseManager:
                     cluster_id = ?,
                     notes = ?,
                     cost_center = ?,
-                    company_code = ?
+                    company_code = ?,
+                    company_cnpj = ?
                 WHERE id = ?
             """, (
                 order.passenger_name,
@@ -230,6 +276,7 @@ class DatabaseManager:
                 order.notes,
                 order.cost_center,
                 order.company_code,
+                order.company_cnpj,
                 order.id
             ))
             conn.commit()
@@ -462,5 +509,9 @@ class DatabaseManager:
             raw_email_body=row['raw_email_body'],
             error_message=row['error_message'],
             minastaxi_order_id=row['minastaxi_order_id'],
-            cluster_id=row['cluster_id']
+            cluster_id=row['cluster_id'],
+            notes=row.get('notes'),
+            cost_center=row.get('cost_center'),
+            company_code=row.get('company_code'),
+            company_cnpj=row.get('company_cnpj')
         )

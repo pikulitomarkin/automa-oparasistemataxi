@@ -329,6 +329,11 @@ class MinasTaxiClient:
         if not company_code:
             company_code = self._detect_company(order.dropoff_address or "")
         
+        # CNPJ da empresa: usa o do order (já convertido) ou o padrão do cliente
+        # O CNPJ é passado no campo 'user' da API MinasTaxi
+        company_cnpj = order.company_cnpj if order.company_cnpj else self.user_id
+        logger.info(f"Using CNPJ in 'user' field: {company_cnpj}")
+        
         # Monta observação com centro de custo
         passenger_note = ""
         if cost_center:
@@ -344,7 +349,7 @@ class MinasTaxiClient:
         # Monta payload no formato Original Software
         payload = {
             "partner": "1",  # Fixo como "1" conforme padrão
-            "user": self.user_id,
+            "user": company_cnpj,  # CNPJ da empresa (identifica qual empresa está fazendo o pedido)
             "password": self.password,
             "request_id": request_id,
             "pickup_time": unix_time,
@@ -358,18 +363,18 @@ class MinasTaxiClient:
             "users": users
         }
         
-        # Adiciona centro de custo e código de empresa nos campos extras
-        # extra1 = Código da Empresa (aparece no campo "Código / Empresa")
-        # extra2 = Centro de Custo (aparece no campo "C.Custo")
+        # Adiciona código de empresa (extra1) para referência
+        # NOTA: centro de custo será adicionado quando a API suportar
         if company_code:
             payload["extra1"] = company_code
             logger.info(f"✅ Código da empresa (extra1): {company_code}")
         else:
             logger.warning("⚠️ Código da empresa não encontrado")
         
+        # Centro de custo: aguardando implementação de campo específico na API
+        # Por enquanto, incluído apenas no passenger_note
         if cost_center:
-            payload["extra2"] = cost_center
-            logger.info(f"✅ Centro de custo (extra2): {cost_center}")
+            logger.info(f"✅ Centro de custo (incluído em passenger_note): {cost_center}")
         else:
             logger.warning("⚠️ Centro de custo não encontrado")
         
