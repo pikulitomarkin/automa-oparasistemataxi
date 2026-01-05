@@ -81,6 +81,7 @@ class TaxiOrderProcessor:
             user_id=os.getenv('MINASTAXI_USER_ID'),
             password=os.getenv('MINASTAXI_PASSWORD'),
             auth_header=os.getenv('MINASTAXI_AUTH_HEADER', 'Basic Original'),
+            payment_type=os.getenv('MINASTAXI_PAYMENT_TYPE', 'ONLINE_PAYMENT'),
             timeout=int(os.getenv('MINASTAXI_TIMEOUT', 30)),
             max_retries=int(os.getenv('MINASTAXI_RETRY_ATTEMPTS', 3))
         )

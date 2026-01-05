@@ -80,6 +80,7 @@ class MinasTaxiClient:
         user_id: str,
         password: str,
         auth_header: str = None,
+        payment_type: str = "ONLINE_PAYMENT",
         timeout: int = 30,
         max_retries: int = 3
     ):
@@ -91,12 +92,14 @@ class MinasTaxiClient:
             user_id: ID do contrato/empresa (ex: "02572696000156").
             password: Senha de acesso (ex: "0104").
             auth_header: Header de autenticação completo (ex: "Basic Original.#2024").
+            payment_type: Tipo de pagamento (ex: "ONLINE_PAYMENT", "BE", "BOLETO", "VOUCHER").
             timeout: Timeout para requisições em segundos.
             max_retries: Número máximo de tentativas de retry.
         """
         self.api_url = api_url.rstrip('/')
         self.user_id = user_id
         self.password = password
+        self.payment_type = payment_type
         self.timeout = timeout
         self.max_retries = max_retries
         
@@ -359,9 +362,11 @@ class MinasTaxiClient:
             "passenger_note": passenger_note,
             "passenger_name": order.passenger_name,
             "passenger_phone_number": self._remove_country_code(main_phone) if main_phone else "",
-            "payment_type": "ONLINE_PAYMENT",  # Padrão
+            "payment_type": self.payment_type,  # Configurável via .env
             "users": users
         }
+        
+        logger.info(f"💳 Tipo de pagamento: {self.payment_type}")
         
         # Adiciona código de empresa (extra1) para referência
         # NOTA: centro de custo será adicionado quando a API suportar
