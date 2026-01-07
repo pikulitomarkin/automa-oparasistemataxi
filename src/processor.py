@@ -265,7 +265,7 @@ class TaxiOrderProcessor:
             # FASE 2.5: Geocoding
             logger.info("Geocoding addresses...")
             
-            # Geocode destino primeiro
+            # Geocode destino primeiro (CRÍTICO para otimização de rota)
             destination_coords = None
             if order.dropoff_address:
                 dropoff_coords = self.geocoder.geocode_address(order.dropoff_address)
@@ -273,6 +273,17 @@ class TaxiOrderProcessor:
                     order.dropoff_lat, order.dropoff_lng = dropoff_coords
                     destination_coords = dropoff_coords
                     logger.info(f"Destination geocoded: {order.dropoff_lat}, {order.dropoff_lng}")
+                else:
+                    # FALLBACK: tentar geocoding sem restrições de bounds
+                    logger.warning(f"Failed to geocode destination with bounds: {order.dropoff_address}")
+                    logger.info("Trying fallback geocoding without bounds restrictions...")
+                    dropoff_coords = self.geocoder.geocode_address_fallback(order.dropoff_address)
+                    if dropoff_coords:
+                        order.dropoff_lat, order.dropoff_lng = dropoff_coords
+                        destination_coords = dropoff_coords
+                        logger.info(f"Destination geocoded (fallback): {order.dropoff_lat}, {order.dropoff_lng}")
+                    else:
+                        logger.error(f"Failed to geocode destination even with fallback: {order.dropoff_address}")
             
             # Geocode endereços de múltiplos passageiros se houver
             if order.passengers:
@@ -497,6 +508,14 @@ class TaxiOrderProcessor:
             if dropoff_coords:
                 outbound_order.dropoff_lat, outbound_order.dropoff_lng = dropoff_coords
                 destination_coords = dropoff_coords
+            else:
+                # FALLBACK: tentar sem restrições para otimização de rota
+                logger.warning(f"Failed to geocode outbound destination with bounds")
+                dropoff_coords = self.geocoder.geocode_address_fallback(outbound_order.dropoff_address)
+                if dropoff_coords:
+                    outbound_order.dropoff_lat, outbound_order.dropoff_lng = dropoff_coords
+                    destination_coords = dropoff_coords
+                    logger.info(f"Outbound destination geocoded (fallback): {dropoff_coords}")
         
         # Geocoding múltiplos passageiros se houver
         if outbound_order.passengers:

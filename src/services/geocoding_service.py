@@ -135,6 +135,66 @@ class GeocodingService:
         logger.warning(f"No results found for address after trying variants: {address}")
         return None
     
+    def geocode_address_fallback(
+        self,
+        address: str,
+        max_retries: int = 3
+    ) -> Optional[Tuple[float, float]]:
+        """
+        Geocoding fallback SEM restrições de bounds.
+        Usado quando o geocoding com bounds falha, mas ainda precisamos das coordenadas
+        para otimização de rota por distância.
+        
+        Args:
+            address: Endereço completo em texto.
+            max_retries: Número máximo de tentativas em caso de timeout.
+            
+        Returns:
+            Tupla (latitude, longitude) ou None se falhar.
+        """
+        if not address or address.strip() == "":
+            logger.warning("Empty address provided for fallback geocoding")
+            return None
+        
+        normalized_address = self._normalize_address(address)
+        
+        for attempt in range(max_retries):
+            try:
+                # Geocoding SEM restrições de bounds
+                if self.use_google:
+                    location = self.geolocator.geocode(normalized_address, region='br')
+                else:
+                    location = self.geolocator.geocode(
+                        normalized_address,
+                        exactly_one=True,
+                        addressdetails=True
+                    )
+
+                if location:
+                    lat, lng = location.latitude, location.longitude
+                    logger.info(f"Fallback geocoded '{address}' -> ({lat:.6f}, {lng:.6f})")
+                    return (lat, lng)
+                else:
+                    logger.debug(f"No results for fallback geocoding: '{address}'")
+                    return None
+
+            except GeocoderTimedOut:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    logger.warning(
+                        f"Fallback geocoding timeout, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Fallback geocoding failed after {max_retries} attempts")
+                    return None
+
+            except Exception as e:
+                logger.error(f"Unexpected error in fallback geocoding '{address}': {e}")
+                return None
+
+        return None
+    
     def geocode_batch(
         self,
         addresses: list[str],
