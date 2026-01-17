@@ -173,7 +173,26 @@ def format_datetime(dt):
     """Formata datetime para exibição."""
     if dt is None:
         return "-"
-    return dt.strftime("%d/%m/%Y %H:%M")
+    try:
+        import pytz
+        br_tz = pytz.timezone('America/Sao_Paulo')
+        # Se for string, tenta converter
+        if isinstance(dt, str):
+            from datetime import datetime
+            # Suporta ISO 8601 com ou sem timezone
+            if dt.endswith('Z'):
+                dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+            else:
+                dt = datetime.fromisoformat(dt)
+        # Se não tem tzinfo, assume UTC
+        if dt.tzinfo is None:
+            import pytz
+            dt = pytz.utc.localize(dt)
+        # Converte para horário de Brasília
+        dt_br = dt.astimezone(br_tz)
+        return dt_br.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return str(dt)
 
 
 def create_map(orders):
