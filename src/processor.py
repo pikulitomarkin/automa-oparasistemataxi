@@ -524,16 +524,17 @@ class TaxiOrderProcessor:
                 if coords:
                     passenger['lat'] = coords[0]
                     passenger['lng'] = coords[1]
-            
+
             # Otimizar rota para IDA
             optimized_passengers = RouteOptimizer.optimize_pickup_sequence(
                 outbound_order.passengers, destination_coords
             )
             outbound_order.passengers = optimized_passengers
-            
+
             if outbound_order.passengers and 'lat' in outbound_order.passengers[0]:
                 outbound_order.pickup_lat = outbound_order.passengers[0]['lat']
                 outbound_order.pickup_lng = outbound_order.passengers[0]['lng']
+                pickup_coords = None  # Não será usada abaixo
             else:
                 pickup_coords = self.geocoder.geocode_address(outbound_order.pickup_address)
                 if not pickup_coords:
@@ -553,13 +554,8 @@ class TaxiOrderProcessor:
                 logger.warning(f"Outbound order {outbound_order.id} requires manual review")
                 return outbound_order
             outbound_order.pickup_lat, outbound_order.pickup_lng = pickup_coords
-            outbound_order.status = OrderStatus.MANUAL_REVIEW
-            outbound_order.error_message = "Failed to geocode pickup address (outbound)"
-            outbound_order.id = self.db.create_order(outbound_order)
-            logger.warning(f"Outbound order {outbound_order.id} requires manual review")
-            return outbound_order
         
-        outbound_order.pickup_lat, outbound_order.pickup_lng = pickup_coords
+
         
         # Geocoding dropoff (destino - DELP, etc)
         if outbound_order.dropoff_address:
