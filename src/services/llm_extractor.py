@@ -234,6 +234,12 @@ Data/hora de referência: {reference_datetime}"""
                 if m2:
                     data['payment_type'] = m2.group(1).strip()
                     logger.debug(f"Fallback extracted payment_type from email: {data['payment_type']}")
+            # fallback para notas especificas
+            if not data.get('notes'):
+                m3 = re.search(r"Obs(?:ervação)?\s*[:\-]\s*(.+)", email_body, re.IGNORECASE)
+                if m3:
+                    data['notes'] = m3.group(1).strip()
+                    logger.debug(f"Fallback extracted notes from email: {data['notes']}")
 
             # Validação básica
             if not self._validate_extracted_data(data):
