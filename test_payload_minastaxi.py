@@ -63,6 +63,7 @@ def test_payload_format():
         "passenger_name": order.passenger_name,
         "passenger_phone_number": "31999999926",
         "payment_type": "ONLINE_PAYMENT",
+        "cost_center": order.cost_center,
         "passenger_note": f"C.Custo: {order.cost_center} | {order.notes}",
         "users": [
             {
@@ -77,7 +78,8 @@ def test_payload_format():
                     "postal_code": "",
                     "lat": str(order.pickup_lat),
                     "lng": str(order.pickup_lng)
-                }
+                },
+                "passenger_cost_center": order.cost_center
             }
         ],
         "destinations": [
@@ -124,6 +126,7 @@ def test_payload_format():
         "✅ extra2 presente (centro custo fallback)": "extra2" in payload,
         "✅ passenger_note contém C.Custo": "C.Custo" in payload.get("passenger_note", ""),
         "✅ payment_type configurado": payload.get("payment_type") == "ONLINE_PAYMENT",
+        "✅ usuários têm passenger_cost_center": payload.get("users")[0].get("passenger_cost_center") == order.cost_center,
         "✅ users array não vazio": len(payload.get("users", [])) > 0,
         "✅ destinations array não vazio": len(payload.get("destinations", [])) > 0
     }
@@ -152,6 +155,7 @@ def test_payload_format():
     print(f"  extra1 ('{payload.get('extra1')}') → Campo 'Código / Empresa'")
     print(f"  cost_center ('{payload.get('cost_center')}') → Campo 'C.Custo' (campo nativo)")
     print(f"  extra2 ('{payload.get('extra2')}') → Campo 'C.Custo' (fallback de compatibilidade)")
+    print(f"  passenger_cost_center no usuário → deve aparecer na UI como C.Custo")
     print(f"  passenger_note → Campo 'Obs. Operador(a)'")
     print(f"{'─' * 80}\n")
     

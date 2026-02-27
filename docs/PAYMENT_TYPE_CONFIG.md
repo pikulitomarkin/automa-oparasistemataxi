@@ -33,8 +33,11 @@ MINASTAXI_PAYMENT_TYPE=BE
 
 1. O valor é lido do arquivo `.env` via variável `MINASTAXI_PAYMENT_TYPE`
 2. Se não configurado, usa `ONLINE_PAYMENT` como padrão
-3. O valor é passado para o `MinasTaxiClient` na inicialização
-4. Cada pedido despachado usa esse valor no campo `payment_type` do payload
+3. Opcionalmente, o `LLMExtractor` também tenta detectar a forma de pagamento
+   diretamente do corpo do email (ex: "Pgto: DIN", "Pagamento: VOUCHER").
+   Se extraído, o valor do email tem prioridade sobre a variável de ambiente.
+4. O valor final é passado para o `MinasTaxiClient` na inicialização ou no pedido
+5. Cada pedido despachado usa esse valor no campo `payment_type` do payload
 
 ## Logs
 

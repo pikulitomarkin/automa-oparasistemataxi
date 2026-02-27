@@ -298,8 +298,12 @@ class MinasTaxiClient:
                         "postal_code": "",
                         "lat": str(passenger_lat),  # Coordenada específica do passageiro
                         "lng": str(passenger_lng)   # Coordenada específica do passageiro
-                    }
+                    },
+                    # inclui centro de custo no usuário para aparecer no campo apropriado da UI
+                    "passenger_cost_center": order.cost_center or ""
                 })
+                if order.cost_center:
+                    logger.debug(f"Adding passenger_cost_center to user {idx}: {order.cost_center}")
         else:
             # Passageiro único (formato antigo)
             users.append({
@@ -359,10 +363,12 @@ class MinasTaxiClient:
             "category": "taxi",  # Pode ser parametrizado depois
             "passengers_no": passengers_count,
             "suitcases_no": 0,
+            "cost_center": cost_center,  # campo nativo agora suportado
             "passenger_note": passenger_note,
             "passenger_name": order.passenger_name,
             "passenger_phone_number": self._remove_country_code(main_phone) if main_phone else "",
-            "payment_type": self.payment_type,  # Configurável via .env
+            # prioridade: tipo extraído do order, senão configuração global
+            "payment_type": order.payment_type or self.payment_type,
             "users": users
         }
         

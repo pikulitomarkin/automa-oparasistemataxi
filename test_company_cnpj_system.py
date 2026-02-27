@@ -98,6 +98,7 @@ def test_llm_extraction():
         print(f"   Destino: {data.get('dropoff_address')}")
         print(f"   Horário: {data.get('pickup_time')}")
         print(f"   Centro de Custo: {data.get('cost_center')}")
+        print(f"   Payment Type: {data.get('payment_type')}")
         print(f"   ✅ Código da Empresa: {data.get('company_code')}")
         
         # Valida que extraiu o código
@@ -105,6 +106,9 @@ def test_llm_extraction():
         if not company_code:
             print("\n❌ FALHA: Código da empresa não foi extraído!")
             return
+        # opcionalmente checar payment_type reconhecido
+        if data.get('payment_type'):
+            print(f"\n🔄 Payment type extracted: {data.get('payment_type')}")
         
         if company_code != "284":
             print(f"\n⚠️  AVISO: Esperava '284', obteve '{company_code}'")

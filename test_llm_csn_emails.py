@@ -153,6 +153,24 @@ Obrigado!""",
             "contains_cc": "20049",
             "has_return": True
         }
+    },
+    {
+        "name": "Email 6 - Pagamento em DINHEIRO",
+        "subject": "PROGRAMAÇÃO DE TAXI hoje 10:00h",
+        "body": """Bom dia,
+
+Pedido de táxi hoje 10:00h
+
+CC:20099
+Pgto: DIN
+
+Obrigado!""",
+        "sender": "teste@exemplo.com",
+        "date": datetime(2025, 10, 1, 9, 0),
+        "expected": {
+            "payment_type": "DIN",
+            "contains_cc": "20099"
+        }
     }
 ]
 
@@ -249,6 +267,9 @@ def run_llm_tests():
             if "contains_cc" in expected:
                 match = expected["contains_cc"] in str(order_dict.get('notes', ''))
                 checks.append((f"CC:{expected['contains_cc']} em notas", match))
+            if "payment_type" in expected:
+                match = expected["payment_type"].lower() == str(order_dict.get('payment_type','')).lower()
+                checks.append((f"Payment type => {expected['payment_type']}", match))
             
             if "multiple_passengers" in expected and expected["multiple_passengers"]:
                 notes = str(order_dict.get('notes', '')).lower()

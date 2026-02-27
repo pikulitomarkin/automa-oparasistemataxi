@@ -85,10 +85,14 @@ Isso garante compatibilidade com Railway e outros ambientes cloud.
 
 ### Migração Manual (opcional, apenas para ambientes locais)
 
-Se preferir executar manualmente:
+As colunas `company_cnpj`, `cost_center` e agora `payment_type` são adicionadas automaticamente pelo
+`DatabaseManager` na primeira execução. Entretanto, se quiser rodar manualmente ou for um ambiente antigo,
+use os scripts abaixo:
 
 ```bash
-python migrate_add_company_cnpj.py
+python migrate_add_company_cnpj.py        # adiciona company_cnpj
+python migrate_add_notes_cost_center.py   # adiciona notes + cost_center
+python migrate_add_payment_type.py        # adiciona payment_type (novo em 2026)
 ```
 
 ## API MinasTaxi
@@ -118,7 +122,8 @@ Email
   │
   ├─> LLM Extractor
   │   ├─> company_code = "284"
-  │   └─> cost_center = "1.07002.07.001"
+  │   ├─> cost_center = "1.07002.07.001"
+  │   └─> payment_type = "DIN" (se presente no email)
   │
   ├─> Processor
   │   └─> company_cnpj = get_cnpj_from_company_code("284")

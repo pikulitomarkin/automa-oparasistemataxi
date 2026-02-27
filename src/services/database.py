@@ -62,7 +62,8 @@ class DatabaseManager:
                         whatsapp_message_id TEXT,
                         notes TEXT,
                         cost_center TEXT,
-                        company_code TEXT
+                        company_code TEXT,
+                        payment_type TEXT
                     )
                 """)
                 logger.info(f"Created new orders table at {self.db_path}")
@@ -108,7 +109,8 @@ class DatabaseManager:
                     'notes': 'TEXT',
                     'cost_center': 'TEXT',
                     'company_code': 'TEXT',
-                    'company_cnpj': 'TEXT'
+                    'company_cnpj': 'TEXT',
+                    'payment_type': 'TEXT'
                 }
                 
                 # Adiciona colunas que faltam
@@ -191,8 +193,8 @@ class DatabaseManager:
                     dropoff_address, pickup_lat, pickup_lng, dropoff_lat, 
                     dropoff_lng, pickup_time, status, created_at, updated_at,
                     raw_email_body, error_message, minastaxi_order_id, cluster_id,
-                    whatsapp_sent, whatsapp_message_id, notes, cost_center, company_code, company_cnpj
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    whatsapp_sent, whatsapp_message_id, notes, cost_center, company_code, company_cnpj, payment_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 order.email_id,
                 order.passenger_name,
@@ -216,7 +218,8 @@ class DatabaseManager:
                 order.notes,
                 order.cost_center,
                 order.company_code,
-                order.company_cnpj
+                order.company_cnpj,
+                order.payment_type
             ))
             conn.commit()
             order_id = cursor.lastrowid
@@ -256,7 +259,8 @@ class DatabaseManager:
                     notes = ?,
                     cost_center = ?,
                     company_code = ?,
-                    company_cnpj = ?
+                    company_cnpj = ?,
+                    payment_type = ?
                 WHERE id = ?
             """, (
                 order.passenger_name,
@@ -277,6 +281,7 @@ class DatabaseManager:
                 order.cost_center,
                 order.company_code,
                 order.company_cnpj,
+                order.payment_type,
                 order.id
             ))
             conn.commit()

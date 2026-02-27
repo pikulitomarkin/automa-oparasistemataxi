@@ -221,6 +221,8 @@ POST /rideCreate
 - `passenger_note`: Observações
 - `payment_type`: Tipo de pagamento
 - `cost_center`: Novo campo para centro de custo (substitui a dependência de `extra2`)
+- `passenger_cost_center`: Campo dentro de cada usuário para que a UI exiba o C.Custo na linha do passageiro
+- `payment_type`: Tipo de pagamento configurável/extraído
 - `extra1`, `extra2`, `extra3`, `extra4`: Campos extras customizados (ainda mantidos para compatibilidade)
 - `destinations`: Array com destinos (opcional se já informado no user)
 

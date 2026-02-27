@@ -57,6 +57,7 @@ Extraia os seguintes campos em formato JSON:
   "notes": "Todas as observações relevantes: CC, múltiplos passageiros, retorno programado, telefones adicionais, empresa, etc. Incluir TUDO que for relevante",
   "company_code": "CRÍTICO: Extrair código da empresa de QUALQUER formato. Exemplos: 'Empresa: 284' → '284', '*Empresa: 284 - Nome*' → '284', 'Emp. 123' → '123', 'Company: 456' → '456'. Procurar por palavras-chave: Empresa, Emp, Company, Código de Empresa. Retornar APENAS o código numérico. Se não encontrar, retornar string vazia ''",
   "cost_center": "CRÍTICO: Extrair centro de custo de QUALQUER formato. Exemplos: 'CC: 20086' → '20086', 'Centro de Custo: 1.07002.07.004' → '1.07002.07.004', 'C.Custo: 123' → '123', 'CC 456' → '456'. Procurar por: CC, C.Custo, Centro de Custo, Cost Center. Aceitar números simples ou com pontos/traços. Se não encontrar, retornar string vazia ''",
+  "payment_type": "Opcional: detectar forma de pagamento se o email mencionar 'Pgto' ou 'Pagamento' seguido de DIN, BE, VOUCHER, BOLETO, ONLINE etc. Retornar APENAS o valor (ex: 'DIN', 'BE'). Se ausente, use string vazia ''",
   "passengers": [
     {{
       "name": "Nome completo do passageiro",
