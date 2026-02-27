@@ -205,6 +205,7 @@ class TaxiOrderProcessor:
             order.notes = extracted_data.get('notes')  # Observações gerais
             order.company_code = extracted_data.get('company_code')  # Código da empresa extraído do email
             order.cost_center = extracted_data.get('cost_center')  # Centro de custo extraído diretamente
+            order.payment_type = extracted_data.get('payment_type')  # Pode vir do email (ex: "Pgto: DIN")
             
             # Converte código da empresa para CNPJ
             if order.company_code:
@@ -216,6 +217,10 @@ class TaxiOrderProcessor:
             # Múltiplos passageiros (novo)
             order.passengers = extracted_data.get('passengers', [])
             order.has_return = extracted_data.get('has_return', False)
+            
+            # Fallback para payment_type via variável de ambiente se não houver no email
+            if not order.payment_type:
+                order.payment_type = os.getenv('MINASTAXI_PAYMENT_TYPE', 'ONLINE_PAYMENT')
             
             # Parse pickup_time
             if extracted_data.get('pickup_time'):
@@ -262,18 +267,21 @@ class TaxiOrderProcessor:
             
             # Continua processamento normal (sem retorno)
             
-            # FASE 2.5: Geocoding
-            logger.info("Geocoding addresses...")
-            
-            # Geocode destino primeiro (CRÍTICO para otimização de rota)
-            destination_coords = None
-            if order.dropoff_address:
-                dropoff_coords = self.geocoder.geocode_address(order.dropoff_address)
-                if dropoff_coords:
-                    order.dropoff_lat, order.dropoff_lng = dropoff_coords
-                    destination_coords = dropoff_coords
-                    logger.info(f"Destination geocoded: {order.dropoff_lat}, {order.dropoff_lng}")
-                else:
+            # FASE 2.5: Geocoding (pode ser desabilitado via env)
+            if os.getenv('DISABLE_GEOCODING', 'false').lower() == 'true':
+                logger.warning("Geocoding disabled by DISABLE_GEOCODING environment variable")
+                destination_coords = None
+            else:
+                logger.info("Geocoding addresses...")
+                # Geocode destino primeiro (CRÍTICO para otimização de rota)
+                destination_coords = None
+                if order.dropoff_address:
+                    dropoff_coords = self.geocoder.geocode_address(order.dropoff_address)
+                    if dropoff_coords:
+                        order.dropoff_lat, order.dropoff_lng = dropoff_coords
+                        destination_coords = dropoff_coords
+                        logger.info(f"Destination geocoded: {order.dropoff_lat}, {order.dropoff_lng}")
+                    else:
                     # FALLBACK: tentar geocoding sem restrições de bounds
                     logger.warning(f"Failed to geocode destination with bounds: {order.dropoff_address}")
                     logger.info("Trying fallback geocoding without bounds restrictions...")
