@@ -3,6 +3,7 @@ Main processor orchestrating the entire taxi automation pipeline.
 """
 import logging
 import os
+import re
 from datetime import datetime
 from typing import List
 from dotenv import load_dotenv
