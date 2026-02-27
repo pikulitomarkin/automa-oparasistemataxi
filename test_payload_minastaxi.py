@@ -4,6 +4,7 @@ Teste para validar o payload enviado para MinasTaxi com centro de custo e códig
 import os
 import sys
 import json
+import re
 from datetime import datetime, timedelta
 
 # Adiciona src ao path
@@ -39,7 +40,8 @@ def test_payload_format():
         status=OrderStatus.GEOCODED,
         cost_center="1.07002.07.004",  # EXTRAÍDO DO EMAIL
         company_code="284",  # EXTRAÍDO DO EMAIL
-        notes="CC: 1.07002.07.004 | Empresa: 284 - Delp Engenharia"
+        # notas originais incluem CC e pagamento, que devem ser removidos no payload
+        notes="CC: 1.07002.07.004 | Pagamento: Voucher | Solicitação urgente"
     )
     
     print(f"\n📋 Dados do Pedido:")
@@ -52,7 +54,26 @@ def test_payload_format():
     print(f"\n{'─' * 80}")
     print("PAYLOAD GERADO:")
     print(f"{'─' * 80}")
-    
+
+    # helper para limpar notas como o client faz
+    def sanitize(notes: str) -> str:
+        parts = [p.strip() for p in notes.split('|') if p.strip()]
+        keep = []
+        for p in parts:
+            if re.search(r"\bCC\s*:\s*[\d\.]+", p, re.IGNORECASE):
+                continue
+            if re.search(r"Centro de Custo", p, re.IGNORECASE):
+                continue
+            if re.search(r"Pagamento\s*[:\-]", p, re.IGNORECASE):
+                continue
+            keep.append(p)
+        return ' | '.join(keep).strip()
+
+    clean_notes = sanitize(order.notes)
+    passenger_note = f"C.Custo: {order.cost_center}"
+    if clean_notes:
+        passenger_note += f" | {clean_notes}"
+
     payload = {
         "partner": "1",
         "user": "02572696000156",
@@ -64,7 +85,7 @@ def test_payload_format():
         "passenger_phone_number": "31999999926",
         "payment_type": "ONLINE_PAYMENT",
         "cost_center": order.cost_center,
-        "passenger_note": f"C.Custo: {order.cost_center} | {order.notes}",
+        "passenger_note": passenger_note,
         "users": [
             {
                 "id": 1,
@@ -118,13 +139,14 @@ def test_payload_format():
     print("VALIDAÇÕES")
     print(f"{'=' * 80}")
     
+    expected_passenger_note = passenger_note
     tests = {
         "✅ extra1 presente (código empresa)": "extra1" in payload,
         "✅ extra1 = '284'": payload.get("extra1") == "284",
         "✅ cost_center presente": "cost_center" in payload,
         "✅ cost_center = '1.07002.07.004'": payload.get("cost_center") == "1.07002.07.004",
         "✅ extra2 presente (centro custo fallback)": "extra2" in payload,
-        "✅ passenger_note contém C.Custo": "C.Custo" in payload.get("passenger_note", ""),
+        "✅ passenger_note correto": payload.get("passenger_note") == expected_passenger_note,
         "✅ payment_type configurado": payload.get("payment_type") == "ONLINE_PAYMENT",
         "✅ usuários têm passenger_cost_center": payload.get("users")[0].get("passenger_cost_center") == order.cost_center,
         "✅ users array não vazio": len(payload.get("users", [])) > 0,

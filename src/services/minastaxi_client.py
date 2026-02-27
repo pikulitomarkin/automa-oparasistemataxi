@@ -178,6 +178,30 @@ class MinasTaxiClient:
         if match:
             return match.group(1)
         
+    def _sanitize_notes(self, notes: str) -> str:
+        """
+        Remove informações de centro de custo e pagamento das observações.
+        
+        O algoritmo divide o texto por barras verticais e filtra cada
+        segmento. Se a parte corresponder a um padrão de CC ou Pagamento,
+        descartamos; o restante é remontado.
+        """
+        if not notes:
+            return ""
+        parts = [p.strip() for p in notes.split('|') if p.strip()]
+        keep = []
+        for p in parts:
+            # descartar padrões de centro de custo
+            if re.search(r'\bCC\s*:\s*[\d\.]+', p, re.IGNORECASE):
+                continue
+            if re.search(r'Centro de Custo', p, re.IGNORECASE):
+                continue
+            # descartar menções de pagamento
+            if re.search(r'Pagamento\s*[:\-]', p, re.IGNORECASE):
+                continue
+            keep.append(p)
+        return ' | '.join(keep).strip()
+        
         # Padrão: sequência numérica com pontos (ex: 1.07002.07.001)
         match = re.search(r'\b(\d+\.\d+\.\d+\.\d+)\b', notes)
         if match:
@@ -341,15 +365,18 @@ class MinasTaxiClient:
         company_cnpj = order.company_cnpj if order.company_cnpj else self.user_id
         logger.info(f"Using CNPJ in 'user' field: {company_cnpj}")
         
-        # Monta observação com centro de custo
+        # Monta observação com centro de custo, mas limpa a string original
+        # para não repetir informações de CC/pagamento já tratadas.
         passenger_note = ""
         if cost_center:
             passenger_note = f"C.Custo: {cost_center}"
-        if order.notes:
+        # aplica sanitização para remover CC e pagamento indesejado
+        clean_notes = self._sanitize_notes(order.notes or "")
+        if clean_notes:
             if passenger_note:
-                passenger_note += f" | {order.notes}"
+                passenger_note += f" | {clean_notes}"
             else:
-                passenger_note = order.notes
+                passenger_note = clean_notes
         if not passenger_note and order.raw_email_body:
             passenger_note = order.raw_email_body
         
