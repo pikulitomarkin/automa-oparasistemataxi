@@ -127,10 +127,11 @@ POST /rideCreate
   "category": "taxi",
   "passengers_no": 1,
   "suitcases_no": 1,
+  "cost_center": "1.07002.07.004",          # NOVO campo oficial para centro de custo
   "passenger_note": "someNote",
   "passenger_name": "Joao da silva",
   "passenger_phone_number": "11923989655",
-  "payment_type": "ONLINE_PAYMENT",
+  "payment_type": "ONLINE_PAYMENT",        # Tipo de pagamento configurável
   "extra1": "someExtraField1",
   "extra2": "someExtraField2",
   "extra3": "someExtraField3",
@@ -219,7 +220,8 @@ POST /rideCreate
 - `suitcases_no`: Número de malas (padrão: 0)
 - `passenger_note`: Observações
 - `payment_type`: Tipo de pagamento
-- `extra1`, `extra2`, `extra3`, `extra4`: Campos extras customizados
+- `cost_center`: Novo campo para centro de custo (substitui a dependência de `extra2`)
+- `extra1`, `extra2`, `extra3`, `extra4`: Campos extras customizados (ainda mantidos para compatibilidade)
 - `destinations`: Array com destinos (opcional se já informado no user)
 
 ### Response

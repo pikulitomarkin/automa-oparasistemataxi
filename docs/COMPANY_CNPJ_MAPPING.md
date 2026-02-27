@@ -108,7 +108,7 @@ python migrate_add_company_cnpj.py
 **IMPORTANTE**: O campo de centro de custo ainda **não existe na API MinasTaxi**. Quando for criado:
 
 1. Atualizar [src/services/minastaxi_client.py](src/services/minastaxi_client.py)
-2. Adicionar campo específico no payload (ex: `cost_center`)
+2. Campo específico `cost_center` já suportado pela API. O sistema envia valor em `cost_center` e, para compatibilidade, também em `extra2`.
 3. Por enquanto, centro de custo é incluído em `passenger_note`
 
 ## Fluxo Completo
@@ -197,8 +197,7 @@ Se deveria ser outro CNPJ:
 
 1. ✅ **Implementado**: Mapeamento código → CNPJ
 2. ✅ **Implementado**: Envio de CNPJ no campo `user`
-3. ⏳ **Aguardando**: Campo específico para centro de custo na API
-4. 📋 **Futuro**: Interface web para gerenciar mapeamentos
+3. ✅ **Disponível**: Campo específico `cost_center` agora é usado pelo sistema e pela API4. 📋 **Futuro**: Interface web para gerenciar mapeamentos
 
 ---
 

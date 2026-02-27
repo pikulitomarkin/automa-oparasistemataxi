@@ -45,11 +45,45 @@ O sistema estava **extraindo corretamente** os dados, mas **enviando nos campos 
 ### Arquivo Modificado:
 - `src/services/minastaxi_client.py` (linhas 350-380)
 
-### Mudanças:
+### Mudanças originais:
 1. **Removido**: Campos `cost_center` e `company_code` (não nativos da API)
 2. **Adicionado**: Campos `extra1` (código empresa) e `extra2` (centro custo)
 3. **Logs atualizados**: Mostram `extra1` e `extra2` para debug
 
+---
+
+## 📈 Atualização da API
+A Original Software finalmente disponibilizou um campo **`cost_center`** nativo no endpoint `rideCreate`. A partir daqui o sistema utiliza o campo dedicado e mantém `extra2` apenas para compatibilidade com versões antigas.
+
+### Ajustes realizados:
+1. Payload envia agora `cost_center` (com mesmo valor que antes ia em `extra2`).
+2. `extra2` continua presente como fallback caso alguma integração ainda dependa dele.
+3. `payment_type` permanece sendo enviado, já suportado desde o início.
+4. Logs alterados para refletir o novo campo.
+
+### Novo exemplo de payload:
+```json
+{
+  "partner": "1",
+  "user": "02572696000156",
+  "password": "0104",
+  "request_id": "20260104170000ABC",
+  "pickup_time": "...",
+  "category": "taxi",
+  "passengers_no": 1,
+  "cost_center": "1.07002.07.004",
+  "payment_type": "ONLINE_PAYMENT",
+  "extra1": "284",
+  "extra2": "1.07002.07.004", // fallback
+  ...
+}
+```
+
+### Logs esperados agora:
+```
+✅ Código da empresa (extra1): 284
+✅ Centro de custo (cost_center): 1.07002.07.004
+```
 ### Código após correção:
 ```python
 # Adiciona centro de custo e código de empresa nos campos extras

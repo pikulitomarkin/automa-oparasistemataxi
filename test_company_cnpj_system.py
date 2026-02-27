@@ -175,6 +175,8 @@ def test_payload_generation():
         "partner": "1",
         "user": order.company_cnpj or "02572696000156",  # CNPJ
         "password": "0104",
+        "payment_type": "ONLINE_PAYMENT",
+        "cost_center": order.cost_center,
         "extra1": order.company_code,  # Código
         "passenger_note": f"C.Custo: {order.cost_center}"
     }
@@ -188,6 +190,8 @@ def test_payload_generation():
     # Validações
     assert payload["user"] == "02572696000156", "Campo 'user' deve conter CNPJ"
     assert payload["extra1"] == "284", "Campo 'extra1' deve conter código"
+    assert payload.get("cost_center") == "1.07002.07.001", "Campo 'cost_center' deve estar presente"
+    assert payload.get("payment_type") == "ONLINE_PAYMENT", "Campo 'payment_type' deve ser configurado"
     assert "C.Custo:" in payload["passenger_note"], "Centro de custo deve estar nas notes"
     
     print("\n✅ Payload gerado corretamente!")

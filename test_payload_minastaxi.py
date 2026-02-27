@@ -96,13 +96,13 @@ def test_payload_format():
         ]
     }
     
-    # CAMPOS CRÍTICOS: extra1 e extra2
+    # CAMPOS CRÍTICOS: extra1 e extra2 (compatibilidade)
     if order.company_code:
         payload["extra1"] = order.company_code
         print(f"✅ extra1 (Código Empresa): {order.company_code}")
     
     if order.cost_center:
-        payload["extra2"] = order.cost_center
+        payload["extra2"] = order.cost_center  # ainda populamos extra2 como fallback
         print(f"✅ extra2 (Centro de Custo): {order.cost_center}")
     
     # Mostra payload completo em JSON
@@ -119,9 +119,11 @@ def test_payload_format():
     tests = {
         "✅ extra1 presente (código empresa)": "extra1" in payload,
         "✅ extra1 = '284'": payload.get("extra1") == "284",
-        "✅ extra2 presente (centro custo)": "extra2" in payload,
-        "✅ extra2 = '1.07002.07.004'": payload.get("extra2") == "1.07002.07.004",
+        "✅ cost_center presente": "cost_center" in payload,
+        "✅ cost_center = '1.07002.07.004'": payload.get("cost_center") == "1.07002.07.004",
+        "✅ extra2 presente (centro custo fallback)": "extra2" in payload,
         "✅ passenger_note contém C.Custo": "C.Custo" in payload.get("passenger_note", ""),
+        "✅ payment_type configurado": payload.get("payment_type") == "ONLINE_PAYMENT",
         "✅ users array não vazio": len(payload.get("users", [])) > 0,
         "✅ destinations array não vazio": len(payload.get("destinations", [])) > 0
     }
@@ -148,7 +150,8 @@ def test_payload_format():
     print("MAPEAMENTO DE CAMPOS NA TELA MINASTAXI:")
     print(f"{'─' * 80}")
     print(f"  extra1 ('{payload.get('extra1')}') → Campo 'Código / Empresa'")
-    print(f"  extra2 ('{payload.get('extra2')}') → Campo 'C.Custo'")
+    print(f"  cost_center ('{payload.get('cost_center')}') → Campo 'C.Custo' (campo nativo)")
+    print(f"  extra2 ('{payload.get('extra2')}') → Campo 'C.Custo' (fallback de compatibilidade)")
     print(f"  passenger_note → Campo 'Obs. Operador(a)'")
     print(f"{'─' * 80}\n")
     

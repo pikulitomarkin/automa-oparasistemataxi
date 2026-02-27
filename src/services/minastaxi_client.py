@@ -369,17 +369,18 @@ class MinasTaxiClient:
         logger.info(f"💳 Tipo de pagamento: {self.payment_type}")
         
         # Adiciona código de empresa (extra1) para referência
-        # NOTA: centro de custo será adicionado quando a API suportar
         if company_code:
             payload["extra1"] = company_code
             logger.info(f"✅ Código da empresa (extra1): {company_code}")
         else:
             logger.warning("⚠️ Código da empresa não encontrado")
         
-        # Centro de custo: aguardando implementação de campo específico na API
-        # Por enquanto, incluído apenas no passenger_note
+        # Centro de custo: API agora suporta campo dedicado
         if cost_center:
-            logger.info(f"✅ Centro de custo (incluído em passenger_note): {cost_center}")
+            # envia nos dois campos para compatibilidade com clientes mais antigos
+            payload["cost_center"] = cost_center
+            payload["extra2"] = cost_center
+            logger.info(f"✅ Centro de custo (cost_center): {cost_center}")
         else:
             logger.warning("⚠️ Centro de custo não encontrado")
         
