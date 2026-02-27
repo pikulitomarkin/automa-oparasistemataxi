@@ -282,16 +282,16 @@ class TaxiOrderProcessor:
                         destination_coords = dropoff_coords
                         logger.info(f"Destination geocoded: {order.dropoff_lat}, {order.dropoff_lng}")
                     else:
-                    # FALLBACK: tentar geocoding sem restrições de bounds
-                    logger.warning(f"Failed to geocode destination with bounds: {order.dropoff_address}")
-                    logger.info("Trying fallback geocoding without bounds restrictions...")
-                    dropoff_coords = self.geocoder.geocode_address_fallback(order.dropoff_address)
-                    if dropoff_coords:
-                        order.dropoff_lat, order.dropoff_lng = dropoff_coords
-                        destination_coords = dropoff_coords
-                        logger.info(f"Destination geocoded (fallback): {order.dropoff_lat}, {order.dropoff_lng}")
-                    else:
-                        logger.error(f"Failed to geocode destination even with fallback: {order.dropoff_address}")
+                        # FALLBACK: tentar geocoding sem restrições de bounds
+                        logger.warning(f"Failed to geocode destination with bounds: {order.dropoff_address}")
+                        logger.info("Trying fallback geocoding without bounds restrictions...")
+                        dropoff_coords = self.geocoder.geocode_address_fallback(order.dropoff_address)
+                        if dropoff_coords:
+                            order.dropoff_lat, order.dropoff_lng = dropoff_coords
+                            destination_coords = dropoff_coords
+                            logger.info(f"Destination geocoded (fallback): {order.dropoff_lat}, {order.dropoff_lng}")
+                        else:
+                            logger.error(f"Failed to geocode destination even with fallback: {order.dropoff_address}")
             
             # Geocode endereços de múltiplos passageiros se houver
             if order.passengers:
