@@ -184,6 +184,7 @@ O sistema LLM foi configurado para:
 5. ✅ Detectar viagens de retorno
 6. ✅ Normalizar telefones (remover caracteres especiais)
 7. ✅ Adicionar timezone de Brasília (-03:00)
+8. ✅ Fallback por regex: se o LLM omitir destino ou forma de pagamento, tentamos capturar linhas `Destino:` / `Pagamento:` no corpo do email
 
 ---
 

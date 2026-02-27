@@ -223,6 +223,18 @@ Data/hora de referência: {reference_datetime}"""
                         return fallback
                     raise
             
+            # Pós-processamento: preencher campos ausentes via regex no email
+            if not data.get('dropoff_address'):
+                m = re.search(r"Destino\s*[:\-]\s*(.+)", email_body, re.IGNORECASE)
+                if m:
+                    data['dropoff_address'] = m.group(1).strip()
+                    logger.debug(f"Fallback extracted dropoff_address from email: {data['dropoff_address']}")
+            if not data.get('payment_type'):
+                m2 = re.search(r"Pagamento\s*[:\-]\s*(\w+)", email_body, re.IGNORECASE)
+                if m2:
+                    data['payment_type'] = m2.group(1).strip()
+                    logger.debug(f"Fallback extracted payment_type from email: {data['payment_type']}")
+
             # Validação básica
             if not self._validate_extracted_data(data):
                 logger.warning("Extracted data failed validation")

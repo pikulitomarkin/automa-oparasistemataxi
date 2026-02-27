@@ -161,6 +161,16 @@ Obrigado!""",
 
 Pedido de táxi hoje 10:00h
 
+Empresa: 1011
+Fone: 31 999999926
+Nome: TESTE 1
+Origem: Av Afonso Pena, 4001, Belo Horizonte, MG
+Destino: Tecnokor, Av. das Nações, 3785, Distrito Industrial, Vespasiano - MG, 33201-003
+Centro de Custo: 1.07002.07.004
+Agendamento: 26/04/2026
+Pagamento: Voucher
+Horário: 07:00 hs
+
 CC:20099
 Pgto: DIN
 
@@ -169,7 +179,8 @@ Obrigado!""",
         "date": datetime(2025, 10, 1, 9, 0),
         "expected": {
             "payment_type": "DIN",
-            "contains_cc": "20099"
+            "contains_cc": "20099",
+            "destination_address": "Tecnokor"
         }
     }
 ]
