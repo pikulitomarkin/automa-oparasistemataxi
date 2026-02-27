@@ -206,6 +206,19 @@ class TaxiOrderProcessor:
             order.company_code = extracted_data.get('company_code')  # Código da empresa extraído do email
             order.cost_center = extracted_data.get('cost_center')  # Centro de custo extraído diretamente
             order.payment_type = extracted_data.get('payment_type')  # Pode vir do email (ex: "Pgto: DIN")
+            # Se o email traz um 'Solicitante:' especifico, ele deve prevalecer sobre passenger_name
+            msol = re.search(r"Solicitante\s*[:\-]\s*(.+)", email.body, re.IGNORECASE)
+            if msol:
+                order.passenger_name = msol.group(1).strip()
+                logger.info(f"Override passenger_name from solicitante: {order.passenger_name}")
+            # heurística extra para payment_type: presença de voucher/din no corpo
+            if order.payment_type is None or order.payment_type == "":
+                if re.search(r"voucher", email.body, re.IGNORECASE):
+                    order.payment_type = "VOUCHER"
+                    logger.info("Detected payment_type VOUCHER from email body")
+                elif re.search(r"\bDIN\b", email.body, re.IGNORECASE):
+                    order.payment_type = "DIN"
+                    logger.info("Detected payment_type DIN from email body")
             
             # Converte código da empresa para CNPJ
             if order.company_code:
