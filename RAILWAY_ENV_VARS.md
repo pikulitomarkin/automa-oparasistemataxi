@@ -78,6 +78,7 @@ ENABLE_WHATSAPP_NOTIFICATIONS=true
 ```
 GOOGLE_MAPS_API_KEY=your-google-maps-api-key-here
 USE_GOOGLE_MAPS=false
+DISABLE_GEOCODING=false          # true para pular etapas de geocoding (usa endereços textuais apenas)
 ```
 
 💡 Se não tiver Google Maps API, deixe `USE_GOOGLE_MAPS=false` (usa Nominatim gratuito)

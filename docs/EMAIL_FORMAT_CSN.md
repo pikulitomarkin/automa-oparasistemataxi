@@ -201,7 +201,9 @@ Para testar o sistema com seus emails reais:
    ```bash
    python run_processor.py
    ```
-
+> ⚠️ **Se desejar evitar geocoding (coordenadas / estimativa de valor)**,
+> configure `DISABLE_GEOCODING=true` no `.env` ou nas variáveis do Railway.
+> O sistema enviará apenas os endereços textuais recebidos.
 3. **Verifique os logs**:
    ```bash
    tail -f data/taxi_automation.log
