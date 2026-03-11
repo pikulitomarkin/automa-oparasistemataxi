@@ -310,6 +310,10 @@ class MinasTaxiClient:
                     logger.warning(f"Passenger {passenger.get('name')} has no phone, using order phone as fallback")
                     passenger_phone_clean = self._remove_country_code(order.phone) if order.phone else ""
                 
+                # Centro de custo: usa o do passageiro individual se disponível,
+                # senão herda o centro de custo geral do pedido (API v1.9 suporta por passageiro)
+                passenger_cc = passenger.get('cost_center') or cost_center or ""
+
                 users.append({
                     "id": idx,
                     "sequence": idx,
@@ -320,14 +324,14 @@ class MinasTaxiClient:
                         "city": self._extract_city(passenger.get('address', order.pickup_address)),
                         "state": self._extract_state(passenger.get('address', order.pickup_address)),
                         "postal_code": "",
-                        "lat": str(passenger_lat),  # Coordenada específica do passageiro
-                        "lng": str(passenger_lng)   # Coordenada específica do passageiro
+                        "lat": str(passenger_lat),
+                        "lng": str(passenger_lng)
                     },
-                    # inclui centro de custo no usuário para aparecer no campo apropriado da UI
-                    "passenger_cost_center": order.cost_center or ""
+                    # campo oficial da API v1.9 — um centro de custo por passageiro
+                    "passenger_cost_center": passenger_cc
                 })
-                if order.cost_center:
-                    logger.debug(f"Adding passenger_cost_center to user {idx}: {order.cost_center}")
+                if passenger_cc:
+                    logger.debug(f"passenger_cost_center user {idx} ({passenger.get('name')}): {passenger_cc}")
         else:
             # Passageiro único (formato antigo)
             users.append({
@@ -380,17 +384,18 @@ class MinasTaxiClient:
         if not passenger_note and order.raw_email_body:
             passenger_note = order.raw_email_body
         
-        # Monta payload no formato Original Software
+        # Monta payload no formato Original Software v1.9
+        # NOTA: não existe campo "cost_center" no nível raiz do rideCreate (spec v1.9).
+        # O centro de custo é enviado por passageiro via "passenger_cost_center" no array users.
         payload = {
             "partner": "1",  # Fixo como "1" conforme padrão
             "user": company_cnpj,  # CNPJ da empresa (identifica qual empresa está fazendo o pedido)
             "password": self.password,
             "request_id": request_id,
             "pickup_time": unix_time,
-            "category": "taxi",  # Pode ser parametrizado depois
+            "category": "taxi",
             "passengers_no": passengers_count,
             "suitcases_no": 0,
-            "cost_center": cost_center,  # campo nativo agora suportado
             "passenger_note": passenger_note,
             "passenger_name": order.passenger_name,
             "passenger_phone_number": self._remove_country_code(main_phone) if main_phone else "",
@@ -408,12 +413,11 @@ class MinasTaxiClient:
         else:
             logger.warning("⚠️ Código da empresa não encontrado")
         
-        # Centro de custo: API agora suporta campo dedicado
+        # Centro de custo: API v1.9 usa passenger_cost_center por passageiro (já em cada user acima).
+        # extra2 mantido como referência/compatibilidade com integrações legadas.
         if cost_center:
-            # envia nos dois campos para compatibilidade com clientes mais antigos
-            payload["cost_center"] = cost_center
             payload["extra2"] = cost_center
-            logger.info(f"✅ Centro de custo (cost_center): {cost_center}")
+            logger.info(f"✅ Centro de custo em extra2 (referência): {cost_center}")
         else:
             logger.warning("⚠️ Centro de custo não encontrado")
         

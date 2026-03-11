@@ -3,6 +3,7 @@ WhatsApp notification service using Evolution API.
 """
 import logging
 import re
+import time
 import requests
 from typing import Dict, Optional
 from retry import retry
@@ -287,6 +288,36 @@ class WhatsAppNotifier:
             logger.error(f"Unexpected error sending WhatsApp: {e}")
             raise
     
+    def is_connected(self) -> bool:
+        """
+        Verifica se a instância Evolution está conectada ao WhatsApp.
+
+        Consulta o endpoint /instance/connectionState e verifica se o
+        estado retornado é 'open'.
+
+        Returns:
+            True se conectada, False caso contrário ou em caso de erro.
+        """
+        endpoint = f"{self.api_url}/instance/connectionState/{self.instance_name}"
+        try:
+            response = requests.get(endpoint, headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                state = (
+                    data.get('instance', {}).get('state')
+                    or data.get('state')
+                    or ''
+                )
+                connected = state.lower() == 'open'
+                if not connected:
+                    logger.warning(
+                        f"Instance '{self.instance_name}' state: '{state}' (not connected)"
+                    )
+                return connected
+        except Exception as e:
+            logger.warning(f"Could not check connection state for '{self.instance_name}': {e}")
+        return False
+
     def send_manual_review_alert(
         self,
         phone: str,
@@ -332,3 +363,121 @@ class WhatsAppNotifier:
         except Exception as e:
             logger.error(f"Error sending manual review alert: {e}")
             return {'success': False, 'error': str(e)}
+
+
+class WhatsAppNotifierWithFallback:
+    """
+    Wrapper que gerencia instância principal e de backup do WhatsApp.
+
+    Verifica automaticamente a conexão da instância principal antes de
+    enviar. Se ela estiver desconectada, ou se o envio falhar, utiliza
+    a instância de backup sem nenhuma intervenção manual.
+
+    O estado de conexão é verificado no máximo uma vez a cada
+    ``connection_check_interval`` segundos para evitar sobrecarga na API.
+    """
+
+    def __init__(
+        self,
+        primary: WhatsAppNotifier,
+        backup: WhatsAppNotifier,
+        connection_check_interval: int = 60
+    ):
+        """
+        Args:
+            primary: Notificador principal.
+            backup: Notificador de backup (ativado automaticamente se o
+                    principal cair).
+            connection_check_interval: Segundos entre re-verificações de
+                    conexão (padrão 60 s).
+        """
+        self.primary = primary
+        self.backup = backup
+        self.connection_check_interval = connection_check_interval
+
+        # Cache do último estado verificado de cada instância
+        self._last_check: Dict[str, float] = {}
+        self._last_state: Dict[str, bool] = {}
+
+        logger.info(
+            f"WhatsAppNotifierWithFallback: primary='{primary.instance_name}', "
+            f"backup='{backup.instance_name}'"
+        )
+
+    # ------------------------------------------------------------------
+    # Helpers internos
+    # ------------------------------------------------------------------
+
+    def _is_connected_cached(self, notifier: WhatsAppNotifier) -> bool:
+        """Retorna o estado de conexão usando cache com TTL."""
+        now = time.monotonic()
+        key = notifier.instance_name
+        elapsed = now - self._last_check.get(key, 0)
+
+        if elapsed >= self.connection_check_interval:
+            state = notifier.is_connected()
+            self._last_check[key] = now
+            self._last_state[key] = state
+            return state
+
+        return self._last_state.get(key, True)  # assume ok se nunca checou
+
+    def _get_active_notifier(self) -> WhatsAppNotifier:
+        """Retorna a instância ativa (principal ou backup)."""
+        if self._is_connected_cached(self.primary):
+            return self.primary
+
+        logger.warning(
+            f"[Fallback] Instância principal '{self.primary.instance_name}' desconectada. "
+            f"Usando backup '{self.backup.instance_name}'."
+        )
+        return self.backup
+
+    def _try_with_fallback(self, method_name: str, *args, **kwargs) -> Dict:
+        """
+        Chama ``method_name`` na instância ativa; se falhar, tenta no backup.
+        """
+        active = self._get_active_notifier()
+        try:
+            return getattr(active, method_name)(*args, **kwargs)
+        except Exception as primary_exc:
+            if active is self.primary:
+                logger.warning(
+                    f"[Fallback] Falha na instância principal '{self.primary.instance_name}': "
+                    f"{primary_exc}. Tentando backup '{self.backup.instance_name}'."
+                )
+                # Invalida cache para forçar nova verificação depois
+                self._last_check[self.primary.instance_name] = 0
+                try:
+                    return getattr(self.backup, method_name)(*args, **kwargs)
+                except Exception as backup_exc:
+                    logger.error(
+                        f"[Fallback] Falha também no backup '{self.backup.instance_name}': "
+                        f"{backup_exc}."
+                    )
+                    return {'success': False, 'error': str(backup_exc)}
+            raise  # já estava no backup, propaga
+
+    # ------------------------------------------------------------------
+    # Interface pública (mesma assinatura do WhatsAppNotifier)
+    # ------------------------------------------------------------------
+
+    def send_message(
+        self,
+        name: str,
+        phone: str,
+        destination: str,
+        status: str,
+        pickup_time: str = None
+    ) -> Dict:
+        """Envia mensagem com fallback automático para a instância de backup."""
+        return self._try_with_fallback(
+            'send_message', name, phone, destination, status, pickup_time
+        )
+
+    def send_manual_review_alert(self, phone: str, name: str, reason: str) -> Dict:
+        """Envia alerta de revisão manual com fallback automático."""
+        return self._try_with_fallback(
+            'send_manual_review_alert', phone, name, reason
+        )
+

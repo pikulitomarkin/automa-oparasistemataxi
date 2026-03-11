@@ -62,7 +62,8 @@ Extraia os seguintes campos em formato JSON:
     {{
       "name": "Nome completo do passageiro",
       "phone": "Telefone do passageiro (apenas números com DDD)",
-      "address": "Endereço completo do passageiro"
+      "address": "Endereço completo do passageiro",
+      "cost_center": "Centro de custo INDIVIDUAL deste passageiro, se mencionado especificamente para ele (ex: 'João CC: 1.07001'). Se não houver CC individual, retornar string vazia '' (o CC geral do pedido será usado)"
     }}
   ],
   "has_return": false,

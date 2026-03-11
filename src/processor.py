@@ -12,7 +12,7 @@ from .services.email_reader import EmailReader, EmailMessage
 from .services.llm_extractor import LLMExtractor
 from .services.geocoding_service import GeocodingService
 from .services.minastaxi_client import MinasTaxiClient, MinasTaxiAPIError
-from .services.whatsapp_notifier import WhatsAppNotifier
+from .services.whatsapp_notifier import WhatsAppNotifier, WhatsAppNotifierWithFallback
 from .services.database import DatabaseManager
 from .services.route_optimizer import RouteOptimizer
 from .models import Order, OrderStatus
@@ -90,14 +90,41 @@ class TaxiOrderProcessor:
         # WhatsApp Notifier (opcional)
         self.whatsapp_enabled = os.getenv('ENABLE_WHATSAPP_NOTIFICATIONS', 'false').lower() == 'true'
         if self.whatsapp_enabled:
-            self.whatsapp_notifier = WhatsAppNotifier(
-                api_url=os.getenv('EVOLUTION_API_URL', ''),
-                api_key=os.getenv('EVOLUTION_API_KEY', ''),
+            _api_url = os.getenv('EVOLUTION_API_URL', '')
+            _api_key = os.getenv('EVOLUTION_API_KEY', '')
+            _auth_header = os.getenv('EVOLUTION_AUTH_HEADER_NAME', 'apikey')
+            _timeout = int(os.getenv('MINASTAXI_TIMEOUT', 30))
+
+            primary_notifier = WhatsAppNotifier(
+                api_url=_api_url,
+                api_key=_api_key,
                 instance_name=os.getenv('EVOLUTION_INSTANCE_NAME', 'taxi-bot'),
-                auth_header_name=os.getenv('EVOLUTION_AUTH_HEADER_NAME', 'apikey'),
-                timeout=int(os.getenv('MINASTAXI_TIMEOUT', 30))
+                auth_header_name=_auth_header,
+                timeout=_timeout
             )
-            logger.info("WhatsApp notifications enabled")
+
+            backup_instance = os.getenv('EVOLUTION_BACKUP_INSTANCE_NAME', '')
+            if backup_instance:
+                backup_notifier = WhatsAppNotifier(
+                    api_url=os.getenv('EVOLUTION_BACKUP_API_URL', _api_url),
+                    api_key=os.getenv('EVOLUTION_BACKUP_API_KEY', _api_key),
+                    instance_name=backup_instance,
+                    auth_header_name=os.getenv('EVOLUTION_BACKUP_AUTH_HEADER_NAME', _auth_header),
+                    timeout=_timeout
+                )
+                self.whatsapp_notifier = WhatsAppNotifierWithFallback(
+                    primary=primary_notifier,
+                    backup=backup_notifier,
+                    connection_check_interval=int(
+                        os.getenv('EVOLUTION_BACKUP_CHECK_INTERVAL', 60)
+                    )
+                )
+                logger.info(
+                    f"WhatsApp notifications enabled with backup instance '{backup_instance}'"
+                )
+            else:
+                self.whatsapp_notifier = primary_notifier
+                logger.info("WhatsApp notifications enabled (no backup configured)")
         else:
             self.whatsapp_notifier = None
             logger.info("WhatsApp notifications disabled")

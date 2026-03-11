@@ -127,7 +127,6 @@ POST /rideCreate
   "category": "taxi",
   "passengers_no": 1,
   "suitcases_no": 1,
-  "cost_center": "1.07002.07.004",          # NOVO campo oficial para centro de custo
   "passenger_note": "someNote",
   "passenger_name": "Joao da silva",
   "passenger_phone_number": "11923989655",
@@ -142,7 +141,8 @@ POST /rideCreate
       "sequence": 1,
       "name": "Passageiro 1",
       "phone": "11992181117",
-      "pickup": {
+      "passenger_re": "2222222",
+      "passenger_cost_center": "RH",
         "address": "ALAMEDA OLGA, 422",
         "neighborhood": "Barra Funda",
         "city": "Sao Paulo",
@@ -218,13 +218,16 @@ POST /rideCreate
 - `stopped_time`: Tempo parado
 - `passengers_no`: Número de passageiros (padrão: 1)
 - `suitcases_no`: Número de malas (padrão: 0)
-- `passenger_note`: Observações
+- `passenger_note`: Observações gerais da corrida
 - `payment_type`: Tipo de pagamento
-- `cost_center`: Novo campo para centro de custo (substitui a dependência de `extra2`)
-- `passenger_cost_center`: Campo dentro de cada usuário para que a UI exiba o C.Custo na linha do passageiro
-- `payment_type`: Tipo de pagamento configurável/extraído
-- `extra1`, `extra2`, `extra3`, `extra4`: Campos extras customizados (ainda mantidos para compatibilidade)
+- `extra1`, `extra2`, `extra3`, `extra4`: Campos extras customizáveis (utilizamos `extra1` para código da empresa e `extra2` como referência do CC global)
 - `destinations`: Array com destinos (opcional se já informado no user)
+
+**Centro de custo (spec v1.9):**
+- NÃO existe campo `cost_center` no nível raiz do `rideCreate`
+- O campo correto é `passenger_cost_center` **dentro de cada objeto do array `users`**
+- Isso permite centros de custo **diferentes por passageiro** na mesma corrida
+- Exemplo: Passageiro 1 → `"passenger_cost_center": "RH"`, Passageiro 2 → `"passenger_cost_center": "TI"`
 
 ### Response
 ```json
