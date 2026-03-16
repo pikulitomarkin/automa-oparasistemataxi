@@ -228,6 +228,7 @@ class TaxiOrderProcessor:
             # Atualiza order com dados extraídos
             order.passenger_name = extracted_data.get('passenger_name')
             order.phone = extracted_data.get('phone')
+            order.passenger_re = extracted_data.get('passenger_re')
             order.pickup_address = extracted_data.get('pickup_address')
             order.dropoff_address = extracted_data.get('dropoff_address')
             order.notes = extracted_data.get('notes')  # Observações gerais
@@ -257,6 +258,9 @@ class TaxiOrderProcessor:
             
             # Múltiplos passageiros (novo)
             order.passengers = extracted_data.get('passengers', [])
+            # Garante RE por passageiro quando vier apenas no nível principal.
+            if order.passengers and order.passenger_re and not order.passengers[0].get('passenger_re'):
+                order.passengers[0]['passenger_re'] = order.passenger_re
             order.has_return = extracted_data.get('has_return', False)
             
             # Fallback para payment_type via variável de ambiente se não houver no email
@@ -635,6 +639,7 @@ class TaxiOrderProcessor:
             raw_email_body=f"{base_order.raw_email_body}\n[VIAGEM: VOLTA]",
             passenger_name=base_order.passenger_name,
             phone=base_order.phone,
+            passenger_re=base_order.passenger_re,
             passengers=base_order.passengers,
             pickup_time=base_order.return_time,
             status=OrderStatus.EXTRACTED

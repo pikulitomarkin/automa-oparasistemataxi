@@ -53,7 +53,7 @@ def main_loop():
     Executa processador em loop contínuo com intervalo configurável.
     """
     # Intervalo entre execuções (em minutos)
-    interval_minutes = int(os.getenv('PROCESSOR_INTERVAL_MINUTES', 5))
+    interval_minutes = int(os.getenv('PROCESSOR_INTERVAL_MINUTES', 1))
     interval_seconds = interval_minutes * 60
     
     # Dias para buscar e-mails

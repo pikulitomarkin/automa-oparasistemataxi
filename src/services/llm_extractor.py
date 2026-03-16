@@ -51,6 +51,7 @@ Extraia os seguintes campos em formato JSON:
 {{
   "passenger_name": "Nome completo do primeiro passageiro (se múltiplos, separe com vírgula)",
   "phone": "Telefone com DDD (formato: 31988888888 ou similar, remova parênteses e hífens). Se não houver telefone explícito, use string vazia ''",
+    "passenger_re": "Matrícula/RE do primeiro passageiro (somente números quando possível). Ex: '222222'. Se não houver, use string vazia ''",
   "pickup_address": "Endereço/local de COLETA (origem). Se for sigla, expanda: CSN → 'CSN Mineração, Congonhas, MG'",
   "dropoff_address": "Endereço/local de DESTINO. Se for sigla, expanda",
   "pickup_time": "Data e hora de coleta no formato ISO 8601 (YYYY-MM-DDTHH:MM:SS-03:00)",
@@ -62,6 +63,7 @@ Extraia os seguintes campos em formato JSON:
     {{
       "name": "Nome completo do passageiro",
       "phone": "Telefone do passageiro (apenas números com DDD)",
+            "passenger_re": "Matrícula/RE individual do passageiro (ex: 222222). Se não houver, retornar string vazia ''",
       "address": "Endereço completo do passageiro",
       "cost_center": "Centro de custo INDIVIDUAL deste passageiro, se mencionado especificamente para ele (ex: 'João CC: 1.07001'). Se não houver CC individual, retornar string vazia '' (o CC geral do pedido será usado)"
     }}
@@ -128,6 +130,7 @@ REGRAS CRÍTICAS:
 {{
   "passenger_name": "João Silva",
   "phone": "31988888888",
+    "passenger_re": "222222",
   "pickup_address": "CSN Mineração, Congonhas, MG",
   "dropoff_address": "Belo Horizonte, MG",
   "pickup_time": "2026-01-04T14:00:00-03:00",
@@ -413,6 +416,10 @@ Data/hora de referência: {reference_datetime}"""
             name_match = re.search(r'(?:Nome|Passageiro)[:\s-]+([A-ZÀ-Ÿa-zà-ÿ\s]+)', text)
             name = name_match.group(1).strip() if name_match else ''
 
+            # RE/Matrícula: tenta capturar padrões comuns (RE: 123456, Matrícula 123456)
+            re_match = re.search(r'(?:\bRE\b|Matr[ií]cula|Registro)\s*[:\-]?\s*(\d{4,12})', text, re.IGNORECASE)
+            passenger_re = re_match.group(1).strip() if re_match else ''
+
             # Pickup: procurar 'Origem' ou 'Pickup' ou linhas com 'Rua'/'Av.'
             pickup_match = re.search(r'(?:Origem|Pickup|Pickup:|Pickup )[:\s-]*(.+)', text)
             if not pickup_match:
@@ -440,6 +447,7 @@ Data/hora de referência: {reference_datetime}"""
             result = {
                 'passenger_name': name or 'Multiple passengers',
                 'phone': phone or '',
+                'passenger_re': passenger_re or '',
                 'pickup_address': pickup or '',
                 'dropoff_address': dropoff or '',
                 'pickup_time': pickup_time or '',

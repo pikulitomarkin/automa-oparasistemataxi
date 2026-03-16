@@ -29,6 +29,7 @@ class Order:
     # Dados do passageiro
     passenger_name: Optional[str] = None
     phone: Optional[str] = None
+    passenger_re: Optional[str] = None
     
     # Endereços
     pickup_address: Optional[str] = None
@@ -79,6 +80,7 @@ class Order:
             'email_id': self.email_id,
             'passenger_name': self.passenger_name,
             'phone': self.phone,
+            'passenger_re': self.passenger_re,
             'pickup_address': self.pickup_address,
             'dropoff_address': self.dropoff_address,
             'pickup_lat': self.pickup_lat,

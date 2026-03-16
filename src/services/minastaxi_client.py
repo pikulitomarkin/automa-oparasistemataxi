@@ -291,6 +291,9 @@ class MinasTaxiClient:
         
         # Determina quantidade de passageiros
         passengers_count = len(order.passengers) if order.passengers else 1
+
+        # Centro de custo: usa o extraído diretamente pelo LLM ou tenta extrair das notes
+        cost_center = order.cost_center if order.cost_center else self._extract_cost_center(order.notes or "")
         
         # Monta array de users
         users = []
@@ -313,12 +316,19 @@ class MinasTaxiClient:
                 # Centro de custo: usa o do passageiro individual se disponível,
                 # senão herda o centro de custo geral do pedido (API v1.9 suporta por passageiro)
                 passenger_cc = passenger.get('cost_center') or cost_center or ""
+                passenger_re = str(
+                    passenger.get('passenger_re')
+                    or passenger.get('re')
+                    or passenger.get('registration')
+                    or ""
+                )
 
                 users.append({
                     "id": idx,
                     "sequence": idx,
                     "name": passenger.get('name', order.passenger_name),
                     "phone": passenger_phone_clean,
+                    "passenger_re": passenger_re,
                     "pickup": {
                         "address": passenger.get('address', order.pickup_address),
                         "city": self._extract_city(passenger.get('address', order.pickup_address)),
@@ -339,6 +349,7 @@ class MinasTaxiClient:
                 "sequence": 1,
                 "name": order.passenger_name,
                 "phone": self._remove_country_code(order.phone),
+                "passenger_re": str(order.passenger_re or ""),
                 "pickup": {
                     "address": order.pickup_address,
                     "city": self._extract_city(order.pickup_address),
@@ -353,9 +364,6 @@ class MinasTaxiClient:
         main_phone = order.phone or ""
         if not main_phone and users:
             main_phone = users[0].get('phone', "")
-        
-        # Centro de custo: usa o extraído diretamente pelo LLM ou tenta extrair das notes
-        cost_center = order.cost_center if order.cost_center else self._extract_cost_center(order.notes or "")
         
         # Determina código da empresa: prioriza company_code extraído do email
         company_code = order.company_code if order.company_code else None
